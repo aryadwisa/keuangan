@@ -523,836 +523,677 @@
                 const customCategories = userCategories.filter(cat => !DEFAULT_CATEGORIES.includes(cat));
                 const docRef = doc(db, `artifacts/${appId}/users/${userId}/settings`, 'categories');
                 await setDoc(docRef, { categories: customCategories }, { merge: true });
-                showMessage("Kategori berhasil disimpan.");
             } catch (e) {
                 console.error("Error saving categories:", e);
-                showMessage("Gagal menyimpan kategori. Silakan coba lagi.");
+                showMessage("Gagal menyimpan kategori.");
             }
         };
 
-
-        // Mendengarkan perubahan akun secara real-time dari Firestore
-        const startListeningForAccounts = () => {
-            if (unsubscribeFromAccounts) {
-                unsubscribeFromAccounts();
+        // Menambah kategori baru
+        addCategoryBtn.addEventListener('click', async () => {
+            const newCategory = newCategoryNameInput.value.trim();
+            if (newCategory && !userCategories.includes(newCategory)) {
+                userCategories.push(newCategory);
+                newCategoryNameInput.value = '';
+                updateCategoryDropdowns();
+                renderCategoryList();
+                await saveUserCategories();
+            } else {
+                showMessage("Nama kategori tidak valid atau sudah ada.");
             }
+        });
 
-            const accountsColRef = collection(db, `artifacts/${appId}/users/${userId}/accounts`);
-            unsubscribeFromAccounts = onSnapshot(accountsColRef, (snapshot) => {
-                accounts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                renderAccounts();
-            }, (error) => {
-                console.error("Error listening to accounts:", error);
-                showMessage("Gagal memuat data akun. Silakan refresh halaman.");
+        // Merender daftar kategori di modal
+        const renderCategoryList = () => {
+            categoryListEl.innerHTML = '';
+            userCategories.forEach(category => {
+                const isDefault = DEFAULT_CATEGORIES.includes(category);
+                const li = document.createElement('div');
+                li.className = 'flex items-center justify-between p-2 bg-slate-700 rounded-md';
+                li.innerHTML = `
+                    <span class="text-gray-300">${category}</span>
+                    ${!isDefault ? `<button class="delete-category-btn text-red-400 hover:text-red-500 transition-colors" data-category="${category}">
+                        <i class="fas fa-trash"></i>
+                    </button>` : ''}
+                `;
+                categoryListEl.appendChild(li);
             });
         };
 
-        // Fungsi untuk menampilkan daftar akun
-        const renderAccounts = () => {
+        // Menghapus kategori
+        categoryListEl.addEventListener('click', async (e) => {
+            if (e.target.closest('.delete-category-btn')) {
+                const categoryToDelete = e.target.closest('.delete-category-btn').dataset.category;
+                userCategories = userCategories.filter(cat => cat !== categoryToDelete);
+                updateCategoryDropdowns();
+                renderCategoryList();
+                await saveUserCategories();
+            }
+        });
+
+        manageCategoriesBtn.addEventListener('click', () => {
+            renderCategoryList();
+            manageCategoriesModal.classList.remove('hidden');
+        });
+
+        closeCategoriesModalBtn.addEventListener('click', () => {
+            manageCategoriesModal.classList.add('hidden');
+        });
+
+        // Navigasi
+        const showSection = (sectionId) => {
+            const sections = [accountManagementSection, accountDetailsSection, financialAnalysisSection, reportSection];
+            sections.forEach(sec => {
+                sec.classList.add('hidden');
+            });
+            document.getElementById(sectionId).classList.remove('hidden');
+
+            if (sectionId === 'account-management-section' || sectionId === 'report-section') {
+                mainHeader.classList.remove('hidden');
+                homeReportBtnContainer.classList.remove('hidden');
+            } else {
+                mainHeader.classList.add('hidden');
+                homeReportBtnContainer.classList.add('hidden');
+            }
+
+            if (sectionId === 'account-management-section' && unsubscribeFromTransactions) {
+                unsubscribeFromTransactions();
+            }
+        };
+
+        // Merender daftar akun
+        const renderAccounts = (accountData) => {
+            accounts = accountData;
             accountListEl.innerHTML = '';
             if (accounts.length === 0) {
-                accountListEl.innerHTML = `<p class="text-center text-gray-400 col-span-full">Belum ada akun. Tambahkan akun baru.</p>`;
+                accountListEl.innerHTML = `<p class="text-center text-gray-400 col-span-full">Belum ada akun. Tambah akun baru untuk memulai.</p>`;
                 return;
             }
             accounts.forEach(account => {
-                const totalBalance = account.transactions.reduce((sum, t) => sum + t.amount, 0);
                 const accountCard = document.createElement('div');
-                accountCard.className = 'account-card bg-slate-800 p-5 rounded-lg shadow-md hover:bg-slate-700 transition-colors duration-200 border border-slate-700';
+                accountCard.dataset.id = account.id;
+                accountCard.className = 'account-card p-4 bg-slate-800 rounded-lg shadow-md hover:bg-slate-700 transition-colors duration-200';
                 accountCard.innerHTML = `
-                    <h3 class="font-semibold text-lg text-white">${account.name}</h3>
-                    <p class="text-sm text-gray-400 mt-1">Saldo</p>
-                    <p class="text-2xl font-bold ${totalBalance >= 0 ? 'text-green-400' : 'text-red-400'} mt-1">${formatRupiah(totalBalance)}</p>
+                    <h3 class="text-lg font-semibold text-white truncate"><i class="fas fa-wallet mr-2"></i>${account.name}</h3>
+                    <p class="text-gray-400 text-sm mt-1">Saldo: <span class="text-green-400 font-bold">${formatRupiah(account.balance)}</span></p>
                 `;
                 accountCard.addEventListener('click', () => {
                     currentAccountId = account.id;
-                    showAccountDetails(account);
+                    accountDetailsTitle.innerHTML = `<i class="fas fa-wallet text-indigo-400 mr-3"></i>Rincian Akun: ${account.name}`;
+                    showSection('account-details-section');
+                    startListeningForTransactions(currentAccountId);
                 });
                 accountListEl.appendChild(accountCard);
             });
         };
 
-        // Fungsi untuk menampilkan detail akun
-        const showAccountDetails = (account) => {
-            // Unsubscribe dari listener transaksi sebelumnya jika ada
-            if (unsubscribeFromTransactions) {
-                unsubscribeFromTransactions();
+        // Listener untuk akun
+        const startListeningForAccounts = () => {
+            if (unsubscribeFromAccounts) unsubscribeFromAccounts();
+            const accountsColRef = collection(db, `artifacts/${appId}/users/${userId}/accounts`);
+            unsubscribeFromAccounts = onSnapshot(accountsColRef, (snapshot) => {
+                const accountData = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+                renderAccounts(accountData);
+            }, (error) => {
+                console.error("Error listening to accounts:", error);
+                showMessage("Gagal memuat akun. Coba muat ulang halaman.");
+            });
+        };
+
+        // Menambah akun
+        addAccountBtn.addEventListener('click', () => {
+            newAccountNameInput.value = '';
+            addAccountModal.classList.remove('hidden');
+        });
+
+        cancelAddAccountBtn.addEventListener('click', () => {
+            addAccountModal.classList.add('hidden');
+        });
+
+        saveAccountBtn.addEventListener('click', async () => {
+            const accountName = newAccountNameInput.value.trim();
+            if (!accountName) {
+                showMessage("Nama akun tidak boleh kosong.");
+                return;
+            }
+            try {
+                await addDoc(collection(db, `artifacts/${appId}/users/${userId}/accounts`), {
+                    name: accountName,
+                    balance: 0,
+                    createdAt: new Date()
+                });
+                showMessage(`Akun "${accountName}" berhasil ditambahkan.`);
+                addAccountModal.classList.add('hidden');
+            } catch (e) {
+                console.error("Error adding account:", e);
+                showMessage("Gagal menambahkan akun. Silakan coba lagi.");
+            }
+        });
+
+        // Menghapus akun
+        deleteAccountBtn.addEventListener('click', () => {
+            confirmDeleteModal.classList.remove('hidden');
+        });
+
+        cancelDeleteBtn.addEventListener('click', () => {
+            confirmDeleteModal.classList.add('hidden');
+        });
+
+        confirmDeleteBtn.addEventListener('click', async () => {
+            confirmDeleteModal.classList.add('hidden');
+            if (!currentAccountId) {
+                showMessage("Tidak ada akun yang dipilih.");
+                return;
+            }
+            try {
+                // Hapus semua transaksi terlebih dahulu
+                const transactionsRef = collection(db, `artifacts/${appId}/users/${userId}/accounts/${currentAccountId}/transactions`);
+                const q = query(transactionsRef);
+                const querySnapshot = await getDocs(q);
+                const batch = db.batch();
+                querySnapshot.forEach((doc) => {
+                    batch.delete(doc.ref);
+                });
+                await batch.commit();
+
+                // Hapus akun
+                await deleteDoc(doc(db, `artifacts/${appId}/users/${userId}/accounts`, currentAccountId));
+                showMessage("Akun dan semua transaksi berhasil dihapus.");
+                showSection('account-management-section');
+            } catch (e) {
+                console.error("Error deleting account:", e);
+                showMessage("Gagal menghapus akun. Silakan coba lagi.");
+            }
+        });
+
+        // Merender riwayat transaksi
+        const renderTransactions = (transactionData) => {
+            transactions = transactionData;
+            transactionHistoryEl.innerHTML = '';
+            if (transactions.length === 0) {
+                noTransactionsMessage.classList.remove('hidden');
+                return;
+            } else {
+                noTransactionsMessage.classList.add('hidden');
             }
 
-            mainHeader.classList.add('hidden');
-            accountManagementSection.classList.add('hidden');
-            accountDetailsSection.classList.remove('hidden');
-            
-            accountDetailsTitle.textContent = `Rincian Akun: ${account.name}`;
-            
-            // Mendengarkan perubahan transaksi secara real-time
-            const accountDocRef = doc(db, `artifacts/${appId}/users/${userId}/accounts`, account.id);
-            unsubscribeFromTransactions = onSnapshot(accountDocRef, (docSnap) => {
-                if (docSnap.exists()) {
-                    transactions = docSnap.data().transactions || [];
-                    const totalBalance = transactions.reduce((sum, t) => sum + t.amount, 0);
-                    
-                    currentBalanceEl.textContent = formatRupiah(totalBalance);
-                    if (totalBalance < 0) {
-                        currentBalanceEl.classList.remove('text-green-400');
-                        currentBalanceEl.classList.add('text-red-400');
-                    } else {
-                        currentBalanceEl.classList.remove('text-red-400');
-                        currentBalanceEl.classList.add('text-green-400');
-                    }
+            // Urutkan berdasarkan tanggal terbaru
+            transactions.sort((a, b) => b.date.toDate() - a.date.toDate());
 
-                    // Tampilkan riwayat transaksi jika bagian analisis tidak terlihat
-                    if (financialAnalysisSection.classList.contains('hidden') && reportSection.classList.contains('hidden')) {
-                         renderTransactions(transactions);
-                    }
-                } else {
-                    console.log("No such account document!");
-                    backToAccountsBtn.click(); // Kembali ke daftar akun jika dokumen tidak ada
+            transactions.forEach(t => {
+                const transactionEl = document.createElement('div');
+                const isExpense = t.type === 'expense';
+                const textColor = isExpense ? 'text-red-400' : 'text-green-400';
+                const sign = isExpense ? '-' : '+';
+
+                transactionEl.className = 'flex justify-between items-center p-4 bg-slate-800 rounded-lg shadow-inner';
+                transactionEl.innerHTML = `
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center space-x-2">
+                            <i class="fas ${isExpense ? 'fa-arrow-down text-red-400' : 'fa-arrow-up text-green-400'}"></i>
+                            <span class="text-sm text-gray-400">${t.date.toDate().toLocaleDateString('id-ID')}</span>
+                        </div>
+                        <p class="font-semibold text-white mt-1 truncate">${t.description}</p>
+                        <p class="text-sm text-gray-500 truncate">${t.category}</p>
+                        ${t.photoUrl ? `<a href="${t.photoUrl}" target="_blank" class="text-xs text-indigo-400 hover:underline mt-1 inline-block">Lihat Bukti</a>` : ''}
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <p class="font-bold text-lg ${textColor}">${sign}${formatRupiah(t.amount)}</p>
+                        <button class="edit-transaction-btn text-gray-400 hover:text-indigo-400" data-id="${t.id}"><i class="fas fa-edit"></i></button>
+                        <button class="delete-transaction-btn text-gray-400 hover:text-red-400" data-id="${t.id}"><i class="fas fa-trash-alt"></i></button>
+                    </div>
+                `;
+                transactionHistoryEl.appendChild(transactionEl);
+            });
+        };
+
+        // Mengedit transaksi
+        transactionHistoryEl.addEventListener('click', (e) => {
+            const editBtn = e.target.closest('.edit-transaction-btn');
+            if (editBtn) {
+                const transactionId = editBtn.dataset.id;
+                const transactionToEdit = transactions.find(t => t.id === transactionId);
+                if (transactionToEdit) {
+                    editingTransactionId = transactionId;
+                    editTransactionAmountInput.value = transactionToEdit.amount;
+                    editTransactionDescriptionInput.value = transactionToEdit.description;
+                    editTransactionCategorySelect.value = transactionToEdit.category;
+                    editTransactionModal.classList.remove('hidden');
                 }
+            }
+        });
+
+        cancelEditBtn.addEventListener('click', () => {
+            editTransactionModal.classList.add('hidden');
+        });
+
+        saveEditBtn.addEventListener('click', async () => {
+            if (!editingTransactionId) return;
+            const newAmount = parseFloat(editTransactionAmountInput.value);
+            const newDescription = editTransactionDescriptionInput.value.trim();
+            const newCategory = editTransactionCategorySelect.value;
+            if (isNaN(newAmount) || newAmount <= 0 || !newDescription) {
+                showMessage("Jumlah atau deskripsi tidak valid.");
+                return;
+            }
+            try {
+                const transactionRef = doc(db, `artifacts/${appId}/users/${userId}/accounts/${currentAccountId}/transactions`, editingTransactionId);
+                await setDoc(transactionRef, {
+                    amount: newAmount,
+                    description: newDescription,
+                    category: newCategory
+                }, { merge: true });
+                showMessage("Transaksi berhasil diperbarui.");
+                editTransactionModal.classList.add('hidden');
+                editingTransactionId = null;
+            } catch (e) {
+                console.error("Error updating transaction:", e);
+                showMessage("Gagal memperbarui transaksi.");
+            }
+        });
+
+        // Menghapus transaksi
+        transactionHistoryEl.addEventListener('click', (e) => {
+            const deleteBtn = e.target.closest('.delete-transaction-btn');
+            if (deleteBtn) {
+                deletingTransactionId = deleteBtn.dataset.id;
+                confirmDeleteTransactionModal.classList.remove('hidden');
+            }
+        });
+
+        cancelDeleteTransactionBtn.addEventListener('click', () => {
+            confirmDeleteTransactionModal.classList.add('hidden');
+            deletingTransactionId = null;
+        });
+
+        confirmDeleteTransactionBtn.addEventListener('click', async () => {
+            if (!deletingTransactionId) return;
+            try {
+                const transactionRef = doc(db, `artifacts/${appId}/users/${userId}/accounts/${currentAccountId}/transactions`, deletingTransactionId);
+                await deleteDoc(transactionRef);
+                showMessage("Transaksi berhasil dihapus.");
+                confirmDeleteTransactionModal.classList.add('hidden');
+                deletingTransactionId = null;
+            } catch (e) {
+                console.error("Error deleting transaction:", e);
+                showMessage("Gagal menghapus transaksi.");
+            }
+        });
+
+        // Listener untuk transaksi
+        const startListeningForTransactions = (accountId) => {
+            if (unsubscribeFromTransactions) unsubscribeFromTransactions();
+            const transactionsColRef = collection(db, `artifacts/${appId}/users/${userId}/accounts/${accountId}/transactions`);
+            unsubscribeFromTransactions = onSnapshot(transactionsColRef, (snapshot) => {
+                const transactionData = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data(),
+                    date: doc.data().date
+                }));
+                transactions = transactionData;
+                renderTransactions(transactions);
+                calculateAndUpdateBalance(transactions, accountId);
             }, (error) => {
                 console.error("Error listening to transactions:", error);
                 showMessage("Gagal memuat transaksi. Silakan coba lagi.");
             });
         };
 
-        // Fungsi untuk menampilkan riwayat transaksi
-        const renderTransactions = (transactions) => {
-            transactionHistoryEl.innerHTML = '';
-            if (transactions.length === 0) {
-                noTransactionsMessage.classList.remove('hidden');
-                return;
+        // Menghitung dan memperbarui saldo akun
+        const calculateAndUpdateBalance = async (transactionData, accountId) => {
+            if (!accountId) return;
+            const balance = transactionData.reduce((total, t) => {
+                if (t.type === 'income') return total + t.amount;
+                if (t.type === 'expense') return total - t.amount;
+                return total;
+            }, 0);
+            currentBalanceEl.textContent = formatRupiah(balance);
+
+            try {
+                const accountRef = doc(db, `artifacts/${appId}/users/${userId}/accounts`, accountId);
+                await setDoc(accountRef, { balance: balance }, { merge: true });
+            } catch (e) {
+                console.error("Error updating account balance:", e);
             }
-            noTransactionsMessage.classList.add('hidden');
-
-            // Menyalin array untuk diurutkan agar tidak mengubah data asli
-            const sortedTransactions = [...transactions].sort((a, b) => new Date(b.date) - new Date(a.date));
-
-            sortedTransactions.forEach(t => {
-                const transactionEl = document.createElement('div');
-                const isIncome = t.amount >= 0;
-                transactionEl.className = `p-4 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between ${isIncome ? 'bg-green-900' : 'bg-red-900'}`;
-                
-                let photoHtml = '';
-                if (t.photoUrl) {
-                    photoHtml = `<img src="${t.photoUrl}" alt="Bukti Transaksi" class="w-12 h-12 rounded-full object-cover mr-4">`;
-                }
-
-                transactionEl.innerHTML = `
-                    <div class="flex items-center flex-1">
-                        ${photoHtml}
-                        <div>
-                            <p class="font-medium text-gray-200">${t.description}</p>
-                            <p class="text-sm text-gray-400">${new Date(t.date).toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                            <span class="text-xs font-semibold px-2 py-0.5 mt-1 rounded-full bg-slate-700 text-slate-300 inline-block">${t.category || 'Lainnya'}</span>
-                        </div>
-                    </div>
-                    <div class="flex items-center space-x-4 mt-3 sm:mt-0">
-                        <p class="font-semibold ${isIncome ? 'text-green-400' : 'text-red-400'}">${formatRupiah(t.amount)}</p>
-                        <button class="edit-transaction-btn text-indigo-300 hover:text-indigo-100 transition-colors duration-200" data-id="${t.id}">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button class="delete-transaction-btn text-red-300 hover:text-red-100 transition-colors duration-200" data-id="${t.id}">
-                            <i class="fas fa-trash-alt"></i>
-                        </button>
-                    </div>
-                `;
-                transactionHistoryEl.appendChild(transactionEl);
-            });
-            
-            // Tambahkan event listener untuk tombol edit dan hapus
-            document.querySelectorAll('.edit-transaction-btn').forEach(button => {
-                button.addEventListener('click', (e) => {
-                    const transactionId = e.currentTarget.dataset.id;
-                    editingTransactionId = transactionId;
-                    const transactionToEdit = transactions.find(t => t.id === transactionId);
-                    if (transactionToEdit) {
-                        editTransactionAmountInput.value = Math.abs(transactionToEdit.amount);
-                        editTransactionDescriptionInput.value = transactionToEdit.description;
-                        editTransactionCategorySelect.value = transactionToEdit.category || 'Lainnya';
-                        editTransactionModal.classList.remove('hidden');
-                    }
-                });
-            });
-
-            document.querySelectorAll('.delete-transaction-btn').forEach(button => {
-                button.addEventListener('click', (e) => {
-                    deletingTransactionId = e.currentTarget.dataset.id;
-                    confirmDeleteTransactionModal.classList.remove('hidden');
-                });
-            });
         };
 
-        // Fungsi untuk mengekspor data ke file CSV
-        const exportToCsv = (account) => {
-            const transactions = account.transactions;
-            if (transactions.length === 0) {
-                showMessage('Tidak ada transaksi untuk diekspor.');
-                return;
+        // Mengunggah foto ke Firebase Storage
+        const uploadPhotoToStorage = async (file) => {
+            try {
+                const storageRef = ref(storage, `artifacts/${appId}/users/${userId}/photos/${Date.now()}_${file.name}`);
+                const snapshot = await uploadBytes(storageRef, file);
+                return await getDownloadURL(snapshot.ref);
+            } catch (e) {
+                console.error("Error uploading file:", e);
+                return null;
             }
-
-            const header = 'Tanggal,Deskripsi,Jumlah,Kategori,URL_Foto\n';
-            const rows = transactions.map(t => {
-                const date = new Date(t.date).toLocaleDateString('id-ID');
-                const description = `"${t.description.replace(/"/g, '""')}"`;
-                const amount = t.amount;
-                const category = t.category || '';
-                const photoUrl = t.photoUrl || '';
-                return `${date},${description},${amount},${category},${photoUrl}`;
-            }).join('\n');
-
-            const csvContent = header + rows;
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.setAttribute('href', url);
-            link.setAttribute('download', `${account.name}_transaksi.csv`);
-            link.style.visibility = 'hidden';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
         };
-        
-        // Fungsi untuk mengimpor data dari file CSV
-        const importFromCsv = (file) => {
-            if (!currentAccountId) {
-                showMessage('Silakan pilih akun terlebih dahulu untuk mengimpor data.');
-                importCsvInput.value = '';
-                return;
-            }
 
-            const reader = new FileReader();
-            reader.onload = async (e) => {
-                const text = e.target.result;
-                const lines = text.trim().split(/\r?\n/); // Memisahkan baris dengan regex yang lebih baik
-                const newTransactions = [];
-                let importSuccess = false;
-                
-                // Menangani baris header secara opsional
-                const headers = lines[0].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(h => h.trim().replace(/"/g, ''));
-                const hasHeader = headers.some(h => ['Tanggal', 'Deskripsi', 'Jumlah', 'Kategori'].includes(h));
-                const dataLines = hasHeader ? lines.slice(1) : lines;
-
-                if (dataLines.length === 0) {
-                    showMessage("File CSV kosong atau tidak memiliki data yang valid.");
-                    importCsvInput.value = '';
-                    return;
-                }
-
-                dataLines.forEach(line => {
-                    // Memisahkan kolom dengan regex yang lebih kuat untuk menangani koma dalam kutipan
-                    const parts = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
-
-                    if (parts.length >= 3) {
-                        try {
-                            const date = new Date(parts[0].trim().replace(/"/g, ''));
-                            const description = parts[1].trim().replace(/^"|"$/g, '').replace(/""/g, '"');
-                            const amount = parseFloat(parts[2].trim().replace(/"/g, '').replace(/,/g, ''));
-                            const category = parts[3] ? parts[3].trim().replace(/^"|"$/g, '').replace(/""/g, '"') : 'Lainnya';
-
-                            if (!isNaN(amount) && description && !isNaN(date)) {
-                                newTransactions.push({
-                                    id: crypto.randomUUID(),
-                                    date: date.toISOString(),
-                                    description: description,
-                                    amount: amount,
-                                    category: category
-                                });
-                                importSuccess = true;
-                            }
-                        } catch (e) {
-                            console.warn("Skipping invalid CSV line:", line, e);
-                        }
-                    }
-                });
-
-                if (importSuccess) {
-                    const accountDocRef = doc(db, `artifacts/${appId}/users/${userId}/accounts`, currentAccountId);
-                    const docSnap = await getDoc(accountDocRef);
-                    if (docSnap.exists()) {
-                        const existingTransactions = docSnap.data().transactions || [];
-                        const updatedTransactions = [...existingTransactions, ...newTransactions];
-                        try {
-                            await setDoc(accountDocRef, { transactions: updatedTransactions }, { merge: true });
-                            showMessage(`Berhasil mengimpor ${newTransactions.length} transaksi.`);
-                        } catch (e) {
-                            console.error("Error importing transactions:", e);
-                            showMessage("Gagal mengimpor data. Silakan coba lagi.");
-                        }
-                    } else {
-                        showMessage("Akun tidak ditemukan. Tidak dapat mengimpor.");
-                    }
-                } else {
-                    showMessage("Tidak ada data transaksi yang valid dalam file. Pastikan file Anda memiliki kolom 'Tanggal,Deskripsi,Jumlah,Kategori' yang diformat dengan benar.");
-                }
-
-                importCsvInput.value = ''; // Reset input file
-            };
-            reader.readAsText(file);
-        };
-        
-        importCsvInput.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (file) {
-                importFromCsv(file);
-            }
-        });
-
-
-        // Event listener untuk tombol "Tambah Akun Baru"
-        addAccountBtn.addEventListener('click', () => {
-            addAccountModal.classList.remove('hidden');
-            newAccountNameInput.focus();
-        });
-
-        // Event listener untuk tombol "Batal" di modal
-        cancelAddAccountBtn.addEventListener('click', () => {
-            addAccountModal.classList.add('hidden');
-            newAccountNameInput.value = '';
-        });
-
-        // Event listener untuk tombol "Simpan" di modal
-        saveAccountBtn.addEventListener('click', async () => {
-            const name = newAccountNameInput.value.trim();
-            if (name) {
-                const newAccount = {
-                    name: name,
-                    transactions: []
-                };
-                try {
-                    const accountsColRef = collection(db, `artifacts/${appId}/users/${userId}/accounts`);
-                    await addDoc(accountsColRef, newAccount);
-                    addAccountModal.classList.add('hidden');
-                    newAccountNameInput.value = '';
-                } catch (e) {
-                    console.error("Error adding document: ", e);
-                    showMessage("Gagal menyimpan akun. Silakan coba lagi.");
-                }
-            }
-        });
-        
-        // Event listener untuk pratinjau foto
-        transactionPhotoInput.addEventListener('change', (event) => {
-            const file = event.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    photoPreviewEl.src = e.target.result;
-                    photoPreviewContainer.classList.remove('hidden');
-                };
-                reader.readAsDataURL(file);
-            } else {
-                photoPreviewContainer.classList.add('hidden');
-            }
-        });
-
-        // Fungsi untuk menambahkan transaksi baru ke Firestore
+        // Tambah transaksi
         const addTransaction = async (type) => {
             const amount = parseFloat(transactionAmountInput.value);
             const description = transactionDescriptionInput.value.trim();
             const category = transactionCategorySelect.value;
-            const file = transactionPhotoInput.files[0];
-            let photoUrl = '';
+            const photoFile = transactionPhotoInput.files[0];
 
-            if (isNaN(amount) || amount === 0 || !description) {
-                showMessage('Silakan masukkan jumlah dan deskripsi yang valid.');
+            if (isNaN(amount) || amount <= 0 || !description) {
+                showMessage("Silakan masukkan jumlah dan deskripsi yang valid.");
+                return;
+            }
+            if (!currentAccountId) {
+                showMessage("Pilih akun terlebih dahulu.");
                 return;
             }
 
-            const currentAccount = accounts.find(acc => acc.id === currentAccountId);
-            if (!currentAccount) return;
-            
-            // Nonaktifkan tombol selama proses unggahan
-            addIncomeBtn.disabled = true;
-            addExpenseBtn.disabled = true;
-            addIncomeBtn.textContent = 'Memuat...';
-            addExpenseBtn.textContent = 'Memuat...';
-
-            if (file) {
-                try {
-                    const filename = `transaction-photo-${crypto.randomUUID()}`;
-                    const storageRef = ref(storage, `images/${appId}/${userId}/${currentAccountId}/${filename}`);
-                    await uploadBytes(storageRef, file);
-                    photoUrl = await getDownloadURL(storageRef);
-                } catch (e) {
-                    console.error("Error uploading photo:", e);
+            let photoUrl = null;
+            if (photoFile) {
+                photoUrl = await uploadPhotoToStorage(photoFile);
+                if (!photoUrl) {
                     showMessage("Gagal mengunggah foto. Transaksi akan disimpan tanpa foto.");
                 }
             }
 
-            const transactionAmount = type === 'income' ? Math.abs(amount) : -Math.abs(amount);
-            
-            const newTransaction = {
-                id: crypto.randomUUID(), // Tambahkan ID unik
-                amount: transactionAmount,
-                description: description,
-                category: category,
-                date: new Date().toISOString(),
-                photoUrl: photoUrl
-            };
-
-            const accountDocRef = doc(db, `artifacts/${appId}/users/${userId}/accounts`, currentAccountId);
-            const docSnap = await getDoc(accountDocRef);
-
-            if (docSnap.exists()) {
-                const updatedTransactions = [...(docSnap.data().transactions || []), newTransaction];
-                try {
-                    await setDoc(accountDocRef, { transactions: updatedTransactions }, { merge: true });
-                    transactionAmountInput.value = '';
-                    transactionDescriptionInput.value = '';
-                    transactionCategorySelect.value = 'Lainnya';
-                    transactionPhotoInput.value = '';
-                    photoPreviewContainer.classList.add('hidden');
-                    showMessage("Transaksi berhasil disimpan.");
-                } catch (e) {
-                    console.error("Error updating document:", e);
-                    showMessage("Gagal menyimpan transaksi. Silakan coba lagi.");
-                }
-            }
-            
-            // Aktifkan kembali tombol setelah selesai
-            addIncomeBtn.disabled = false;
-            addExpenseBtn.disabled = false;
-            addIncomeBtn.innerHTML = '<i class="fas fa-arrow-up mr-2"></i>Tambah Pemasukan';
-            addExpenseBtn.innerHTML = '<i class="fas fa-arrow-down mr-2"></i>Tambah Pengeluaran';
-        };
-
-        // Fungsi untuk menghapus akun
-        const deleteAccount = async () => {
-            if (currentAccountId) {
-                confirmDeleteModal.classList.remove('hidden');
+            try {
+                const transactionData = {
+                    amount: amount,
+                    description: description,
+                    category: category,
+                    type: type,
+                    date: new Date(),
+                    photoUrl: photoUrl
+                };
+                await addDoc(collection(db, `artifacts/${appId}/users/${userId}/accounts/${currentAccountId}/transactions`), transactionData);
+                showMessage(`Transaksi berhasil ditambahkan.`);
+                transactionAmountInput.value = '';
+                transactionDescriptionInput.value = '';
+                transactionPhotoInput.value = '';
+                photoPreviewContainer.classList.add('hidden');
+            } catch (e) {
+                console.error("Error adding transaction:", e);
+                showMessage("Gagal menambahkan transaksi. Silakan coba lagi.");
             }
         };
 
-        // Event listener untuk tombol "Hapus Akun"
-        deleteAccountBtn.addEventListener('click', deleteAccount);
-
-        // Event listener untuk konfirmasi penghapusan akun
-        confirmDeleteBtn.addEventListener('click', async () => {
-            confirmDeleteModal.classList.add('hidden');
-            if (currentAccountId) {
-                try {
-                    const accountDocRef = doc(db, `artifacts/${appId}/users/${userId}/accounts`, currentAccountId);
-                    await deleteDoc(accountDocRef);
-                    showMessage('Akun berhasil dihapus.');
-                    // Kembali ke daftar akun setelah penghapusan
-                    backToAccountsBtn.click();
-                } catch (e) {
-                    console.error("Error deleting document:", e);
-                    showMessage("Gagal menghapus akun. Silakan coba lagi.");
-                }
-            }
-        });
-
-        // Event listener untuk membatalkan penghapusan akun
-        cancelDeleteBtn.addEventListener('click', () => {
-            confirmDeleteModal.classList.add('hidden');
-        });
-
-        // Event listener untuk tombol "Tambah Pemasukan"
         addIncomeBtn.addEventListener('click', () => addTransaction('income'));
-
-        // Event listener untuk tombol "Tambah Pengeluaran"
         addExpenseBtn.addEventListener('click', () => addTransaction('expense'));
 
-        // Event listener untuk tombol "Ekspor ke Spreadsheet"
-        exportCsvBtn.addEventListener('click', () => {
-            const currentAccount = accounts.find(acc => acc.id === currentAccountId);
-            if (currentAccount) {
-                exportToCsv(currentAccount);
+        // Pratinjau foto
+        transactionPhotoInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    photoPreviewEl.src = event.target.result;
+                    photoPreviewContainer.classList.remove('hidden');
+                };
+                reader.readAsDataURL(file);
+            } else {
+                photoPreviewEl.src = '';
+                photoPreviewContainer.classList.add('hidden');
             }
         });
 
-        // Event listener untuk tombol "Kembali ke Daftar Akun"
+        // Navigasi kembali
         backToAccountsBtn.addEventListener('click', () => {
-            // Unsubscribe dari listener transaksi saat kembali ke daftar akun
-            if (unsubscribeFromTransactions) {
-                unsubscribeFromTransactions();
-            }
-            mainHeader.classList.remove('hidden');
-            accountDetailsSection.classList.add('hidden');
-            financialAnalysisSection.classList.add('hidden');
-            reportSection.classList.add('hidden');
-            accountManagementSection.classList.remove('hidden');
-            renderAccounts();
+            showSection('account-management-section');
+            currentAccountId = null;
+            transactions = [];
         });
 
-        // --- Fitur Analisis Keuangan Baru ---
+        // Laporan dan Analisis
+        backFromAnalysisBtn.addEventListener('click', () => showSection('account-details-section'));
+        backFromReportBtn.addEventListener('click', () => showSection('account-details-section'));
+        showHomeReportBtn.addEventListener('click', () => {
+            allAccountsToggle.checked = true;
+            reportStartInput.value = '';
+            reportEndInput.value = '';
+            showSection('report-section');
+        });
 
-        // Fungsi untuk mengolah data transaksi dan membuat grafik
-        const renderFinancialAnalysisChart = (transactions) => {
-            if (financialChartInstance) {
-                financialChartInstance.destroy();
-            }
+        // Tombol pintasan laporan
+        reportWeekBtn.addEventListener('click', () => {
+            const now = new Date();
+            const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
+            reportStartInput.valueAsDate = startOfWeek;
+            reportEndInput.valueAsDate = now;
+        });
 
-            const expenses = transactions.filter(t => t.amount < 0);
-            if (expenses.length === 0) {
-                const ctx = financialChartCanvas.getContext('2d');
-                ctx.clearRect(0, 0, financialChartCanvas.width, financialChartCanvas.height);
-                ctx.fillStyle = '#94a3b8'; // text-slate-400
-                ctx.textAlign = 'center';
-                ctx.font = '16px Inter, sans-serif';
-                ctx.fillText('Belum ada data pengeluaran untuk dianalisis.', financialChartCanvas.width / 2, financialChartCanvas.height / 2);
-                return;
-            }
+        reportMonthBtn.addEventListener('click', () => {
+            const now = new Date();
+            const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+            reportStartInput.valueAsDate = startOfMonth;
+            reportEndInput.valueAsDate = now;
+        });
 
-            const categoryData = {};
-            expenses.forEach(t => {
-                const category = t.category || 'Lainnya';
-                if (!categoryData[category]) {
-                    categoryData[category] = 0;
-                }
-                categoryData[category] += Math.abs(t.amount);
-            });
+        reportYearBtn.addEventListener('click', () => {
+            const now = new Date();
+            const startOfYear = new Date(now.getFullYear(), 0, 1);
+            reportStartInput.valueAsDate = startOfYear;
+            reportEndInput.valueAsDate = now;
+        });
 
-            const labels = Object.keys(categoryData);
-            const data = Object.values(categoryData);
-            
-            const backgroundColors = [
-                '#a78bfa', '#34d399', '#f87171', '#fbbf24', '#60a5fa', '#f472b6', '#38bdf8', '#c084fc'
-            ];
-            
-            const chartData = {
-                labels: labels,
-                datasets: [
-                    {
-                        data: data,
-                        backgroundColor: backgroundColors.slice(0, labels.length),
-                        hoverOffset: 4
-                    }
-                ]
+        // Tampilkan Analisis
+        showAnalysisBtn.addEventListener('click', () => {
+            showSection('financial-analysis-section');
+            if (financialChartInstance) financialChartInstance.destroy();
+
+            const expensesByCategory = transactions
+                .filter(t => t.type === 'expense')
+                .reduce((acc, t) => {
+                    acc[t.category] = (acc[t.category] || 0) + t.amount;
+                    return acc;
+                }, {});
+
+            const data = {
+                labels: Object.keys(expensesByCategory),
+                datasets: [{
+                    label: 'Pengeluaran',
+                    data: Object.values(expensesByCategory),
+                    backgroundColor: [
+                        '#818cf8', '#f87171', '#fbbf24', '#34d399', '#60a5fa', '#a78bfa', '#f472b6', '#22d3ee', '#f8a553'
+                    ],
+                    hoverOffset: 4
+                }]
             };
 
-            const chartConfig = {
+            const config = {
                 type: 'pie',
-                data: chartData,
+                data: data,
                 options: {
                     responsive: true,
-                    maintainAspectRatio: false,
                     plugins: {
                         legend: {
                             position: 'top',
-                            labels: { color: '#e2e8f0' }
-                        },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    const label = context.label || '';
-                                    const value = context.parsed;
-                                    return `${label}: ${formatRupiah(value)}`;
-                                }
+                            labels: {
+                                color: '#e2e8f0'
                             }
+                        },
+                        title: {
+                            display: true,
+                            text: 'Pengeluaran per Kategori',
+                            color: '#fff'
                         }
                     }
                 }
             };
-            
-            financialChartInstance = new Chart(financialChartCanvas, chartConfig);
-        };
-
-        // Event listener untuk tombol "Lihat Analisis"
-        showAnalysisBtn.addEventListener('click', () => {
-            const currentAccount = accounts.find(acc => acc.id === currentAccountId);
-            if (!currentAccount) return;
-            
-            document.getElementById('transaction-history').classList.add('hidden');
-            document.getElementById('no-transactions-message').classList.add('hidden');
-            reportSection.classList.add('hidden');
-            financialAnalysisSection.classList.remove('hidden');
-
-            if (financialChartInstance) {
-                 financialChartInstance.destroy();
-            }
-            renderFinancialAnalysisChart(currentAccount.transactions);
+            financialChartInstance = new Chart(financialChartCanvas, config);
         });
 
-        // Event listener untuk tombol "Kembali ke Transaksi"
-        backFromAnalysisBtn.addEventListener('click', () => {
-            financialAnalysisSection.classList.add('hidden');
-            document.getElementById('transaction-history').classList.remove('hidden');
-            const currentAccount = accounts.find(acc => acc.id === currentAccountId);
-            if (currentAccount) {
-                 renderTransactions(currentAccount.transactions);
-            }
-        });
-
-        // --- Logika untuk Edit dan Hapus Transaksi ---
-
-        // Simpan perubahan dari modal edit
-        saveEditBtn.addEventListener('click', async () => {
-            const newAmount = parseFloat(editTransactionAmountInput.value);
-            const newDescription = editTransactionDescriptionInput.value.trim();
-            const newCategory = editTransactionCategorySelect.value;
-
-            if (isNaN(newAmount) || newAmount <= 0 || !newDescription) {
-                showMessage('Silakan masukkan jumlah, deskripsi, dan kategori yang valid.');
-                return;
-            }
-
-            const currentAccount = accounts.find(acc => acc.id === currentAccountId);
-            if (!currentAccount) return;
-
-            const transactionIndex = transactions.findIndex(t => t.id === editingTransactionId);
-            if (transactionIndex > -1) {
-                const transactionToUpdate = transactions[transactionIndex];
-                const updatedTransactions = [...transactions];
-                
-                updatedTransactions[transactionIndex] = {
-                    ...transactionToUpdate,
-                    amount: transactionToUpdate.amount > 0 ? newAmount : -newAmount,
-                    description: newDescription,
-                    category: newCategory
-                };
-
-                const accountDocRef = doc(db, `artifacts/${appId}/users/${userId}/accounts`, currentAccountId);
-                try {
-                    await setDoc(accountDocRef, { transactions: updatedTransactions }, { merge: true });
-                    editTransactionModal.classList.add('hidden');
-                    showMessage('Transaksi berhasil diperbarui.');
-                } catch (e) {
-                    console.error("Error updating transaction:", e);
-                    showMessage("Gagal memperbarui transaksi. Silakan coba lagi.");
-                }
-            } else {
-                showMessage("Transaksi tidak ditemukan.");
-            }
-        });
-
-        // Batalkan edit
-        cancelEditBtn.addEventListener('click', () => {
-            editTransactionModal.classList.add('hidden');
-        });
-
-        // Konfirmasi penghapusan transaksi
-        confirmDeleteTransactionBtn.addEventListener('click', async () => {
-            confirmDeleteTransactionModal.classList.add('hidden');
-            const currentAccount = accounts.find(acc => acc.id === currentAccountId);
-            if (!currentAccount) return;
-
-            const updatedTransactions = transactions.filter(t => t.id !== deletingTransactionId);
-            const accountDocRef = doc(db, `artifacts/${appId}/users/${userId}/accounts`, currentAccountId);
-            try {
-                await setDoc(accountDocRef, { transactions: updatedTransactions }, { merge: true });
-                showMessage('Transaksi berhasil dihapus.');
-            } catch (e) {
-                console.error("Error deleting transaction:", e);
-                showMessage("Gagal menghapus transaksi. Silakan coba lagi.");
-            }
-        });
-
-        // Batalkan hapus
-        cancelDeleteTransactionBtn.addEventListener('click', () => {
-            confirmDeleteTransactionModal.classList.add('hidden');
-        });
-        
-        // --- Logika untuk Kategori Kustom ---
-
-        // Buka modal kelola kategori
-        manageCategoriesBtn.addEventListener('click', () => {
-            renderCategoryList();
-            manageCategoriesModal.classList.remove('hidden');
-        });
-
-        // Tutup modal kelola kategori
-        closeCategoriesModalBtn.addEventListener('click', () => {
-            manageCategoriesModal.classList.add('hidden');
-        });
-
-        // Tambah kategori baru
-        addCategoryBtn.addEventListener('click', () => {
-            const newCategory = newCategoryNameInput.value.trim();
-            if (newCategory && !userCategories.includes(newCategory)) {
-                userCategories.push(newCategory);
-                newCategoryNameInput.value = '';
-                saveUserCategories();
-                updateCategoryDropdowns();
-                renderCategoryList();
-            } else if (newCategory) {
-                 showMessage('Kategori ini sudah ada.');
-            }
-        });
-
-        // Tampilkan daftar kategori di modal
-        const renderCategoryList = () => {
-            categoryListEl.innerHTML = '';
-            userCategories.forEach(category => {
-                const isDefault = DEFAULT_CATEGORIES.includes(category);
-                const categoryItem = document.createElement('div');
-                categoryItem.className = 'flex items-center justify-between p-2 rounded-md bg-slate-700';
-                categoryItem.innerHTML = `
-                    <span class="text-gray-200">${category}</span>
-                    <button class="delete-category-btn text-red-400 hover:text-red-200 transition-colors duration-200" data-category="${category}" ${isDefault ? 'disabled' : ''}>
-                        <i class="fas fa-trash-alt"></i>
-                    </button>
-                `;
-                categoryListEl.appendChild(categoryItem);
-            });
-            
-            // Tambahkan event listener untuk tombol hapus kategori
-            document.querySelectorAll('.delete-category-btn').forEach(button => {
-                button.addEventListener('click', (e) => {
-                    const categoryToDelete = e.currentTarget.dataset.category;
-                    userCategories = userCategories.filter(cat => cat !== categoryToDelete);
-                    saveUserCategories();
-                    updateCategoryDropdowns();
-                    renderCategoryList();
-                });
-            });
-        };
-
-        // --- Fitur Laporan Baru ---
-
-        // Event listener untuk tombol "Lihat Laporan"
+        // Tampilkan Laporan
         showReportBtn.addEventListener('click', () => {
-            document.getElementById('transaction-history').classList.add('hidden');
-            document.getElementById('no-transactions-message').classList.add('hidden');
-            financialAnalysisSection.classList.add('hidden');
-            reportSection.classList.remove('hidden');
+            showSection('report-section');
+            allAccountsToggle.checked = false; // Default to single account
             reportOutputEl.classList.add('hidden');
             noReportDataEl.classList.add('hidden');
-            
-            allAccountsToggle.checked = false;
-            reportWeekBtn.click();
+            reportStartInput.value = '';
+            reportEndInput.value = '';
         });
 
-        // Event listener untuk tombol "Lihat Laporan Semua Akun" di beranda
-        showHomeReportBtn.addEventListener('click', () => {
-            mainHeader.classList.add('hidden');
-            accountManagementSection.classList.add('hidden');
-            accountDetailsSection.classList.add('hidden');
-            financialAnalysisSection.classList.add('hidden');
-            reportSection.classList.remove('hidden');
+        generateReportBtn.addEventListener('click', async () => {
+            let filteredTransactions = [];
+            let allTransactions = [];
 
-            allAccountsToggle.checked = true;
-            reportWeekBtn.click();
-        });
+            const startDate = reportStartInput.value ? new Date(reportStartInput.value) : null;
+            const endDate = reportEndInput.value ? new Date(reportEndInput.value) : null;
 
-        // Event listener untuk tombol "Kembali" dari laporan
-        backFromReportBtn.addEventListener('click', () => {
-            reportSection.classList.add('hidden');
-            // Cek apakah datang dari beranda atau dari rincian akun
-            if (currentAccountId) {
-                 accountDetailsSection.classList.remove('hidden');
-                 renderTransactions(transactions);
-            } else {
-                 mainHeader.classList.remove('hidden');
-                 accountManagementSection.classList.remove('hidden');
-            }
-        });
-
-        // Fungsi untuk mendapatkan semua transaksi dari semua akun
-        const getAllTransactions = () => {
-            return accounts.flatMap(acc => acc.transactions);
-        };
-
-        // Fungsi untuk membuat laporan
-        const generateReport = () => {
-            let selectedTransactions;
             if (allAccountsToggle.checked) {
-                selectedTransactions = getAllTransactions();
-            } else {
-                if (!currentAccountId) {
-                     showMessage("Silakan pilih akun terlebih dahulu atau gunakan fitur 'Laporan Semua Akun' dari beranda.");
-                     return;
+                // Laporan semua akun
+                const accountsRef = collection(db, `artifacts/${appId}/users/${userId}/accounts`);
+                const accountsSnapshot = await getDocs(query(accountsRef));
+                for (const accountDoc of accountsSnapshot.docs) {
+                    const transactionsRef = collection(db, `artifacts/${appId}/users/${userId}/accounts/${accountDoc.id}/transactions`);
+                    const transactionsSnapshot = await getDocs(query(transactionsRef));
+                    const accountTransactions = transactionsSnapshot.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data(),
+                        date: doc.data().date.toDate()
+                    }));
+                    allTransactions = allTransactions.concat(accountTransactions);
                 }
-                selectedTransactions = transactions;
+                filteredTransactions = allTransactions;
+            } else {
+                // Laporan akun tunggal
+                if (!currentAccountId) {
+                    showMessage("Pilih akun atau aktifkan 'Laporan Semua Akun'.");
+                    return;
+                }
+                filteredTransactions = transactions.map(t => ({
+                    ...t,
+                    date: t.date.toDate()
+                }));
             }
 
-            const startDate = new Date(reportStartInput.value);
-            const endDate = new Date(reportEndInput.value);
-            
-            if (isNaN(startDate) || isNaN(endDate) || startDate > endDate) {
-                showMessage("Silakan pilih rentang tanggal yang valid.");
-                return;
+            // Filter berdasarkan tanggal jika ada
+            if (startDate && endDate) {
+                filteredTransactions = filteredTransactions.filter(t => {
+                    const transactionDate = new Date(t.date);
+                    return transactionDate >= startDate && transactionDate <= endDate;
+                });
+            } else if (startDate) {
+                filteredTransactions = filteredTransactions.filter(t => new Date(t.date) >= startDate);
+            } else if (endDate) {
+                filteredTransactions = filteredTransactions.filter(t => new Date(t.date) <= endDate);
             }
-            endDate.setHours(23, 59, 59, 999); // Sertakan seluruh hari
-
-            const filteredTransactions = selectedTransactions.filter(t => {
-                const transactionDate = new Date(t.date);
-                return transactionDate >= startDate && transactionDate <= endDate;
-            });
 
             if (filteredTransactions.length === 0) {
                 reportOutputEl.classList.add('hidden');
                 noReportDataEl.classList.remove('hidden');
                 return;
             }
+            noReportDataEl.classList.add('hidden');
+            reportOutputEl.classList.remove('hidden');
 
-            let totalIncome = 0;
-            let totalExpense = 0;
-            const categoryExpenses = {};
-
-            filteredTransactions.forEach(t => {
-                if (t.amount > 0) {
-                    totalIncome += t.amount;
-                } else {
-                    totalExpense += Math.abs(t.amount);
-                    const category = t.category || 'Lainnya';
-                    if (!categoryExpenses[category]) {
-                        categoryExpenses[category] = 0;
-                    }
-                    categoryExpenses[category] += Math.abs(t.amount);
-                }
-            });
-
-            const totalBalance = totalIncome - totalExpense;
+            const totalIncome = filteredTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+            const totalExpense = filteredTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+            const netBalance = totalIncome - totalExpense;
 
             reportIncomeEl.textContent = formatRupiah(totalIncome);
             reportExpenseEl.textContent = formatRupiah(totalExpense);
-            reportBalanceEl.textContent = formatRupiah(totalBalance);
-            if (totalBalance < 0) {
-                reportBalanceEl.classList.remove('text-white');
-                reportBalanceEl.classList.add('text-red-400');
-            } else {
-                reportBalanceEl.classList.remove('text-red-400');
-                reportBalanceEl.classList.add('text-white');
-            }
+            reportBalanceEl.textContent = formatRupiah(netBalance);
+
+            // Pengeluaran berdasarkan kategori
+            const expensesByCategory = filteredTransactions
+                .filter(t => t.type === 'expense')
+                .reduce((acc, t) => {
+                    acc[t.category] = (acc[t.category] || 0) + t.amount;
+                    return acc;
+                }, {});
 
             categoryReportTableBody.innerHTML = '';
-            const sortedCategories = Object.keys(categoryExpenses).sort((a, b) => categoryExpenses[b] - categoryExpenses[a]);
-            sortedCategories.forEach(cat => {
+            for (const category in expensesByCategory) {
                 const row = document.createElement('tr');
-                row.className = 'border-b border-gray-700 last:border-0';
+                row.className = 'border-b border-gray-700 hover:bg-slate-700 transition-colors';
                 row.innerHTML = `
-                    <td class="py-2 text-gray-300">${cat}</td>
-                    <td class="py-2 text-right text-gray-200">${formatRupiah(categoryExpenses[cat])}</td>
+                    <td class="py-2 text-gray-300">${category}</td>
+                    <td class="py-2 text-right font-semibold text-red-400">${formatRupiah(expensesByCategory[category])}</td>
                 `;
                 categoryReportTableBody.appendChild(row);
+            }
+        });
+
+        // Ekspor ke CSV
+        exportCsvBtn.addEventListener('click', () => {
+            if (transactions.length === 0) {
+                showMessage("Tidak ada transaksi untuk diekspor.");
+                return;
+            }
+            const headers = ["Tanggal", "Jumlah", "Deskripsi", "Kategori", "Tipe", "URL Foto"];
+            const csvRows = [headers.join(',')];
+            transactions.forEach(t => {
+                const row = [
+                    t.date.toDate().toISOString().slice(0, 10),
+                    t.amount,
+                    `"${t.description.replace(/"/g, '""')}"`,
+                    `"${t.category.replace(/"/g, '""')}"`,
+                    t.type,
+                    t.photoUrl || ''
+                ];
+                csvRows.push(row.join(','));
             });
 
-            reportOutputEl.classList.remove('hidden');
-            noReportDataEl.classList.add('hidden');
-        };
-        
-        // Event listener untuk tombol buat laporan
-        generateReportBtn.addEventListener('click', generateReport);
-        
-        // Event listener untuk memilih rentang waktu
-        const setDateRange = (unit) => {
-            const now = new Date();
-            const start = new Date(now);
-            const end = new Date(now);
-            
-            if (unit === 'week') {
-                const dayOfWeek = now.getDay();
-                const diff = now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); // Senin
-                start.setDate(diff);
-                end.setDate(diff + 6);
-            } else if (unit === 'month') {
-                start.setDate(1);
-                end.setMonth(end.getMonth() + 1);
-                end.setDate(0);
-            } else if (unit === 'year') {
-                start.setMonth(0, 1);
-                end.setMonth(11, 31);
-            }
+            const csvString = csvRows.join('\n');
+            const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.setAttribute('download', 'transaksi_keuangan.csv');
+            link.click();
+            showMessage("Data transaksi berhasil diekspor.");
+        });
 
-            reportStartInput.value = start.toISOString().split('T')[0];
-            reportEndInput.value = end.toISOString().split('T')[0];
-        };
+        // Impor dari CSV
+        importCsvInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
 
-        reportWeekBtn.addEventListener('click', () => setDateRange('week'));
-        reportMonthBtn.addEventListener('click', () => setDateRange('month'));
-        reportYearBtn.addEventListener('click', () => setDateRange('year'));
+            const reader = new FileReader();
+            reader.onload = async (event) => {
+                const csvString = event.target.result;
+                const rows = csvString.split('\n').slice(1); // Lewati header
+                const batch = db.batch();
+                let importedCount = 0;
+                let errors = [];
 
+                if (!currentAccountId) {
+                    showMessage("Pilih akun terlebih dahulu untuk mengimpor transaksi.");
+                    return;
+                }
+
+                for (const row of rows) {
+                    if (row.trim() === '') continue;
+                    const [dateStr, amountStr, description, category, type, photoUrl] = row.split(',').map(s => s.trim().replace(/^"|"$/g, '').replace(/""/g, '"'));
+                    const amount = parseFloat(amountStr);
+                    if (isNaN(amount) || amount <= 0) {
+                        errors.push(`Baris dengan jumlah tidak valid: ${row}`);
+                        continue;
+                    }
+
+                    const transactionData = {
+                        amount: amount,
+                        description: description,
+                        category: category || 'Lainnya',
+                        type: type === 'income' ? 'income' : 'expense',
+                        date: new Date(dateStr),
+                        photoUrl: photoUrl || null
+                    };
+
+                    const docRef = doc(collection(db, `artifacts/${appId}/users/${userId}/accounts/${currentAccountId}/transactions`));
+                    batch.set(docRef, transactionData);
+                    importedCount++;
+                }
+
+                try {
+                    await batch.commit();
+                    showMessage(`Berhasil mengimpor ${importedCount} transaksi. ${errors.length > 0 ? `Terdapat ${errors.length} kesalahan.` : ''}`);
+                } catch (e) {
+                    console.error("Error importing transactions:", e);
+                    showMessage("Gagal mengimpor transaksi. Silakan coba lagi.");
+                }
+            };
+            reader.readAsText(file);
+        });
     </script>
 </body>
 </html>
