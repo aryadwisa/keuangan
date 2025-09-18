@@ -1,0 +1,1358 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aplikasi Analisis Keuangan</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a; /* Tailwind bg-slate-900 */
+            color: #e2e8f0; /* Tailwind text-slate-200 */
+        }
+        .container {
+            max-width: 900px;
+        }
+        .card {
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 10px rgba(0, 0, 0, 0.3);
+        }
+        .account-card {
+            cursor: pointer;
+        }
+        .modal {
+            background-color: rgba(0, 0, 0, 0.7);
+        }
+        input, button, .rounded-lg {
+            border-radius: 0.5rem;
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-gray-200 min-h-screen flex flex-col items-center py-10">
+    <div class="container bg-slate-800 rounded-xl shadow-lg p-8 space-y-8">
+        <!-- Header Aplikasi -->
+        <header id="main-header" class="text-center">
+            <h1 class="text-3xl sm:text-4xl font-bold text-white">Manajemen Keuangan</h1>
+            <p class="text-gray-400 mt-2">Kelola pemasukan dan pengeluaran Anda dengan aman.</p>
+            <div id="home-report-btn-container" class="mt-4 flex justify-center">
+                <button id="show-home-report-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200 shadow-md">
+                    <i class="fas fa-file-invoice-dollar mr-2"></i>Lihat Laporan Semua Akun
+                </button>
+            </div>
+        </header>
+
+        <!-- Bagian Manajemen Akun -->
+        <section id="account-management-section" class="p-6 bg-slate-700 rounded-lg card">
+            <h2 class="text-2xl font-semibold text-white mb-4 flex items-center">
+                <i class="fas fa-users-cog text-indigo-400 mr-3"></i>Manajemen Akun
+            </h2>
+            <div id="account-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <p class="text-center text-gray-400 col-span-full">Memuat akun...</p>
+            </div>
+            <div class="mt-6 flex justify-center">
+                <button id="add-account-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200 shadow-md">
+                    <i class="fas fa-plus mr-2"></i>Tambah Akun Baru
+                </button>
+            </div>
+        </section>
+
+        <!-- Bagian Rincian Akun -->
+        <section id="account-details-section" class="p-6 bg-slate-700 rounded-lg card hidden">
+            <div class="flex justify-between items-center mb-4">
+                <h2 id="account-details-title" class="text-2xl font-semibold text-white flex-1 flex items-center">
+                    <i class="fas fa-wallet text-indigo-400 mr-3"></i>Rincian Akun: Nama Akun
+                </h2>
+                <button id="manage-categories-btn" class="bg-gray-700 text-gray-300 text-sm font-semibold py-1 px-3 rounded-lg hover:bg-gray-600 transition-colors duration-200">
+                    <i class="fas fa-tags mr-1"></i>Kelola Kategori
+                </button>
+            </div>
+            <div class="bg-slate-800 p-4 rounded-lg shadow-inner mb-6">
+                <p class="text-sm text-gray-400 font-medium">Saldo Saat Ini</p>
+                <p id="current-balance" class="text-3xl font-bold text-green-400 mt-1">Rp 0</p>
+                <p class="text-xs text-gray-500 mt-2">ID Pengguna: <span id="user-id"></span></p>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div>
+                    <label for="transaction-amount" class="block text-sm font-medium text-gray-300 mb-1">Jumlah</label>
+                    <input type="number" id="transaction-amount" class="w-full rounded-md bg-slate-700 border-gray-600 text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="Masukkan jumlah">
+                </div>
+                <div>
+                    <label for="transaction-description" class="block text-sm font-medium text-gray-300 mb-1">Deskripsi</label>
+                    <input type="text" id="transaction-description" class="w-full rounded-md bg-slate-700 border-gray-600 text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="Contoh: Belanja bulanan">
+                </div>
+                <div>
+                    <label for="transaction-category" class="block text-sm font-medium text-gray-300 mb-1">Kategori</label>
+                    <select id="transaction-category" class="w-full rounded-md bg-slate-700 border-gray-600 text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                        <option value="Lainnya">Lainnya</option>
+                        <option value="Gaji">Gaji</option>
+                        <option value="Makanan">Makanan</option>
+                        <option value="Transportasi">Transportasi</option>
+                        <option value="Tagihan">Tagihan</option>
+                        <option value="Belanja">Belanja</option>
+                        <option value="Hiburan">Hiburan</option>
+                        <option value="Pendidikan">Pendidikan</option>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- Elemen untuk Unggah Foto dan Pratinjau -->
+            <div class="mb-6">
+                <label for="transaction-photo" class="block text-sm font-medium text-gray-300 mb-1">Bukti Transaksi (Opsional)</label>
+                <input type="file" id="transaction-photo" accept="image/*" class="w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-violet-50 file:text-violet-700 hover:file:bg-violet-100">
+                <div id="photo-preview-container" class="mt-2 hidden">
+                    <img id="photo-preview" class="w-24 h-24 rounded-lg object-cover border border-gray-600">
+                </div>
+            </div>
+            
+            <div class="flex justify-center sm:justify-end space-x-4">
+                <button id="add-income-btn" class="flex-1 sm:flex-none bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-6 rounded-lg transition-colors duration-200 shadow-md">
+                    <i class="fas fa-arrow-up mr-2"></i>Tambah Pemasukan
+                </button>
+                <button id="add-expense-btn" class="flex-1 sm:flex-none bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-6 rounded-lg transition-colors duration-200 shadow-md">
+                    <i class="fas fa-arrow-down mr-2"></i>Tambah Pengeluaran
+                </button>
+            </div>
+
+            <div class="mt-8 flex justify-between items-center flex-wrap gap-2">
+                <h3 class="text-xl font-semibold text-white">Riwayat Transaksi</h3>
+                <div class="flex flex-wrap gap-2 justify-end">
+                    <button id="show-analysis-btn" class="bg-indigo-600 text-white text-sm font-semibold py-1 px-3 rounded-lg hover:bg-indigo-700 transition-colors duration-200">
+                        <i class="fas fa-chart-pie mr-2"></i>Lihat Analisis
+                    </button>
+                    <button id="show-report-btn" class="bg-indigo-600 text-white text-sm font-semibold py-1 px-3 rounded-lg hover:bg-indigo-700 transition-colors duration-200">
+                        <i class="fas fa-file-invoice-dollar mr-2"></i>Lihat Laporan
+                    </button>
+                    <button id="export-csv-btn" class="bg-gray-700 text-gray-300 text-sm font-semibold py-1 px-3 rounded-lg hover:bg-gray-600 transition-colors duration-200">
+                        <i class="fas fa-file-csv mr-2"></i>Ekspor ke CSV
+                    </button>
+                    <label for="import-csv-input" class="cursor-pointer bg-gray-700 text-gray-300 text-sm font-semibold py-1 px-3 rounded-lg hover:bg-gray-600 transition-colors duration-200">
+                        <i class="fas fa-file-upload mr-2"></i>Impor dari CSV
+                        <input type="file" id="import-csv-input" accept=".csv" class="hidden">
+                    </label>
+                    <button id="delete-account-btn" class="bg-red-600 text-white text-sm font-semibold py-1 px-3 rounded-lg hover:bg-red-700 transition-colors duration-200">
+                        <i class="fas fa-trash-alt mr-2"></i>Hapus Akun
+                    </button>
+                </div>
+            </div>
+
+            <div id="transaction-history" class="space-y-3 mt-4">
+                <!-- Riwayat transaksi akan ditambahkan di sini oleh JavaScript -->
+            </div>
+            <p id="no-transactions-message" class="text-gray-500 text-center mt-4 hidden">Belum ada transaksi.</p>
+            
+            <div class="mt-8 text-center">
+                <button id="back-to-accounts-btn" class="text-indigo-400 hover:underline font-medium">
+                    <i class="fas fa-chevron-left mr-2"></i>Kembali ke Daftar Akun
+                </button>
+            </div>
+        </section>
+
+        <!-- Bagian Analisis Keuangan -->
+        <section id="financial-analysis-section" class="p-6 bg-slate-700 rounded-lg card hidden">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-semibold text-white">Analisis Keuangan</h2>
+                <button id="back-from-analysis-btn" class="text-indigo-400 hover:underline font-medium text-sm">
+                    <i class="fas fa-chevron-left mr-2"></i>Kembali ke Transaksi
+                </button>
+            </div>
+            <div class="p-4 bg-slate-800 rounded-lg">
+                <canvas id="financial-chart"></canvas>
+            </div>
+        </section>
+
+        <!-- Bagian Laporan Keuangan -->
+        <section id="report-section" class="p-6 bg-slate-700 rounded-lg card hidden">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-semibold text-white">Laporan Keuangan</h2>
+                <button id="back-from-report-btn" class="text-indigo-400 hover:underline font-medium text-sm">
+                    <i class="fas fa-chevron-left mr-2"></i>Kembali
+                </button>
+            </div>
+            
+            <div class="bg-slate-800 p-4 rounded-lg shadow-inner mb-6 space-y-4">
+                <div class="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-4">
+                    <div class="flex items-center space-x-2">
+                        <input type="checkbox" id="all-accounts-toggle" class="form-checkbox h-4 w-4 text-indigo-600 bg-slate-700 border-gray-600 rounded-md">
+                        <label for="all-accounts-toggle" class="text-gray-300">Laporan Semua Akun</label>
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-2">
+                    <button id="report-week-btn" class="bg-gray-700 text-gray-300 text-sm font-semibold py-1 px-3 rounded-lg hover:bg-gray-600">Mingguan</button>
+                    <button id="report-month-btn" class="bg-gray-700 text-gray-300 text-sm font-semibold py-1 px-3 rounded-lg hover:bg-gray-600">Bulanan</button>
+                    <button id="report-year-btn" class="bg-gray-700 text-gray-300 text-sm font-semibold py-1 px-3 rounded-lg hover:bg-gray-600">Tahunan</button>
+                </div>
+                
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label for="report-start-date" class="block text-sm font-medium text-gray-300 mb-1">Tanggal Mulai</label>
+                        <input type="date" id="report-start-date" class="w-full rounded-md bg-slate-700 border-gray-600 text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                    </div>
+                    <div>
+                        <label for="report-end-date" class="block text-sm font-medium text-gray-300 mb-1">Tanggal Akhir</label>
+                        <input type="date" id="report-end-date" class="w-full rounded-md bg-slate-700 border-gray-600 text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                    </div>
+                </div>
+                <div class="text-center">
+                    <button id="generate-report-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-6 rounded-lg transition-colors duration-200 shadow-md">
+                        <i class="fas fa-file-alt mr-2"></i>Buat Laporan
+                    </button>
+                </div>
+            </div>
+
+            <div id="report-output" class="bg-slate-800 p-6 rounded-lg hidden">
+                <h3 class="text-xl font-semibold text-white mb-4">Ringkasan Laporan</h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div class="bg-slate-700 p-4 rounded-lg text-center">
+                        <p class="text-sm text-gray-400">Total Pemasukan</p>
+                        <p id="report-income" class="text-xl font-bold text-green-400 mt-1">Rp 0</p>
+                    </div>
+                    <div class="bg-slate-700 p-4 rounded-lg text-center">
+                        <p class="text-sm text-gray-400">Total Pengeluaran</p>
+                        <p id="report-expense" class="text-xl font-bold text-red-400 mt-1">Rp 0</p>
+                    </div>
+                    <div class="bg-slate-700 p-4 rounded-lg text-center">
+                        <p class="text-sm text-gray-400">Saldo Bersih</p>
+                        <p id="report-balance" class="text-xl font-bold text-white mt-1">Rp 0</p>
+                    </div>
+                </div>
+                <h4 class="text-lg font-semibold text-white mb-2">Pengeluaran Berdasarkan Kategori</h4>
+                <div id="category-report-table-container" class="overflow-x-auto">
+                    <table class="w-full text-left table-auto">
+                        <thead>
+                            <tr class="text-gray-400 border-b border-gray-600">
+                                <th class="py-2">Kategori</th>
+                                <th class="py-2 text-right">Total Pengeluaran</th>
+                            </tr>
+                        </thead>
+                        <tbody id="category-report-table-body">
+                            <!-- Data laporan kategori akan diisi di sini -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <p id="no-report-data" class="text-gray-500 text-center mt-4 hidden">Tidak ada transaksi dalam rentang tanggal yang dipilih.</p>
+        </section>
+
+    </div>
+
+    <!-- Modal untuk menambah akun -->
+    <div id="add-account-modal" class="modal fixed inset-0 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-800 rounded-lg p-6 w-full max-w-sm card">
+            <h3 class="text-xl font-semibold text-white mb-4">Tambah Akun Baru</h3>
+            <div class="mb-4">
+                <label for="new-account-name" class="block text-sm font-medium text-gray-300">Nama Akun</label>
+                <input type="text" id="new-account-name" class="mt-1 w-full rounded-md bg-slate-700 border-gray-600 text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="Contoh: Akun Usaha">
+            </div>
+            <div class="flex justify-end space-x-2">
+                <button id="cancel-add-account-btn" class="px-4 py-2 text-gray-400 hover:text-gray-200 font-semibold rounded-lg">Batal</button>
+                <button id="save-account-btn" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg">Simpan</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal untuk mengedit transaksi -->
+    <div id="edit-transaction-modal" class="modal fixed inset-0 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-800 rounded-lg p-6 w-full max-w-sm card">
+            <h3 class="text-xl font-semibold text-white mb-4">Edit Transaksi</h3>
+            <div class="mb-4">
+                <label for="edit-transaction-amount" class="block text-sm font-medium text-gray-300">Jumlah</label>
+                <input type="number" id="edit-transaction-amount" class="mt-1 w-full rounded-md bg-slate-700 border-gray-600 text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+            </div>
+            <div class="mb-4">
+                <label for="edit-transaction-description" class="block text-sm font-medium text-gray-300">Deskripsi</label>
+                <input type="text" id="edit-transaction-description" class="mt-1 w-full rounded-md bg-slate-700 border-gray-600 text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+            </div>
+            <div class="mb-4">
+                <label for="edit-transaction-category" class="block text-sm font-medium text-gray-300">Kategori</label>
+                <select id="edit-transaction-category" class="w-full rounded-md bg-slate-700 border-gray-600 text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                    <option value="Lainnya">Lainnya</option>
+                </select>
+            </div>
+            <div class="flex justify-end space-x-2">
+                <button id="cancel-edit-btn" class="px-4 py-2 text-gray-400 hover:text-gray-200 font-semibold rounded-lg">Batal</button>
+                <button id="save-edit-btn" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg">Simpan Perubahan</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal untuk konfirmasi penghapusan transaksi -->
+    <div id="confirm-delete-transaction-modal" class="modal fixed inset-0 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-800 rounded-lg p-6 w-full max-w-sm card">
+            <p class="text-gray-200 mb-4 text-center">Apakah Anda yakin ingin menghapus transaksi ini? Tindakan ini tidak dapat dibatalkan.</p>
+            <div class="flex justify-end space-x-2 mt-4">
+                <button id="cancel-delete-transaction-btn" class="px-4 py-2 text-gray-400 hover:text-gray-200 font-semibold rounded-lg">Batal</button>
+                <button id="confirm-delete-transaction-btn" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg">Hapus</button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Modal untuk konfirmasi penghapusan akun -->
+    <div id="confirm-delete-modal" class="modal fixed inset-0 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-800 rounded-lg p-6 w-full max-w-sm card">
+            <p class="text-gray-200 mb-4 text-center">Apakah Anda yakin ingin menghapus akun ini? Tindakan ini tidak dapat dibatalkan.</p>
+            <div class="flex justify-end space-x-2 mt-4">
+                <button id="cancel-delete-btn" class="px-4 py-2 text-gray-400 hover:text-gray-200 font-semibold rounded-lg">Batal</button>
+                <button id="confirm-delete-btn" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg">Hapus</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal untuk menampilkan pesan -->
+    <div id="message-modal" class="modal fixed inset-0 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-800 rounded-lg p-6 w-full max-w-sm card text-center">
+            <p id="message-text" class="text-gray-200 mb-4"></p>
+            <button id="close-message-modal" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg">OK</button>
+        </div>
+    </div>
+    
+    <!-- Modal untuk kelola kategori -->
+    <div id="manage-categories-modal" class="modal fixed inset-0 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-800 rounded-lg p-6 w-full max-w-md card">
+            <h3 class="text-xl font-semibold text-white mb-4">Kelola Kategori</h3>
+            
+            <!-- Tambah kategori baru -->
+            <div class="mb-4 flex space-x-2">
+                <input type="text" id="new-category-name" class="flex-1 rounded-md bg-slate-700 border-gray-600 text-white shadow-sm" placeholder="Nama kategori baru">
+                <button id="add-category-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg">
+                    <i class="fas fa-plus"></i> Tambah
+                </button>
+            </div>
+            
+            <!-- Daftar kategori -->
+            <div id="category-list" class="space-y-2 max-h-60 overflow-y-auto pr-2">
+                <!-- Kategori akan ditambahkan di sini oleh JS -->
+            </div>
+            
+            <div class="flex justify-end mt-6">
+                <button id="close-categories-modal-btn" class="px-4 py-2 text-gray-400 hover:text-gray-200 font-semibold rounded-lg">Tutup</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, query, addDoc, deleteDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
+        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        setLogLevel('Debug');
+
+        const mainHeader = document.getElementById('main-header');
+        const showHomeReportBtn = document.getElementById('show-home-report-btn');
+        const homeReportBtnContainer = document.getElementById('home-report-btn-container');
+
+        const accountListEl = document.getElementById('account-list');
+        const accountManagementSection = document.getElementById('account-management-section');
+        const addAccountBtn = document.getElementById('add-account-btn');
+        const addAccountModal = document.getElementById('add-account-modal');
+        const newAccountNameInput = document.getElementById('new-account-name');
+        const saveAccountBtn = document.getElementById('save-account-btn');
+        const cancelAddAccountBtn = document.getElementById('cancel-add-account-btn');
+
+        const accountDetailsSection = document.getElementById('account-details-section');
+        const accountDetailsTitle = document.getElementById('account-details-title');
+        const currentBalanceEl = document.getElementById('current-balance');
+        const transactionAmountInput = document.getElementById('transaction-amount');
+        const transactionDescriptionInput = document.getElementById('transaction-description');
+        const transactionCategorySelect = document.getElementById('transaction-category');
+        const transactionPhotoInput = document.getElementById('transaction-photo');
+        const photoPreviewContainer = document.getElementById('photo-preview-container');
+        const photoPreviewEl = document.getElementById('photo-preview');
+        const addIncomeBtn = document.getElementById('add-income-btn');
+        const addExpenseBtn = document.getElementById('add-expense-btn');
+        const exportCsvBtn = document.getElementById('export-csv-btn');
+        const importCsvInput = document.getElementById('import-csv-input');
+        const deleteAccountBtn = document.getElementById('delete-account-btn');
+        const transactionHistoryEl = document.getElementById('transaction-history');
+        const noTransactionsMessage = document.getElementById('no-transactions-message');
+        const backToAccountsBtn = document.getElementById('back-to-accounts-btn');
+        const userIdEl = document.getElementById('user-id');
+        const messageModal = document.getElementById('message-modal');
+        const messageTextEl = document.getElementById('message-text');
+        const closeMessageModalBtn = document.getElementById('close-message-modal');
+        const confirmDeleteModal = document.getElementById('confirm-delete-modal');
+        const cancelDeleteBtn = document.getElementById('cancel-delete-btn');
+        const confirmDeleteBtn = document.getElementById('confirm-delete-btn');
+
+        const showAnalysisBtn = document.getElementById('show-analysis-btn');
+        const financialAnalysisSection = document.getElementById('financial-analysis-section');
+        const backFromAnalysisBtn = document.getElementById('back-from-analysis-btn');
+        const financialChartCanvas = document.getElementById('financial-chart');
+        
+        const editTransactionModal = document.getElementById('edit-transaction-modal');
+        const editTransactionAmountInput = document.getElementById('edit-transaction-amount');
+        const editTransactionDescriptionInput = document.getElementById('edit-transaction-description');
+        const editTransactionCategorySelect = document.getElementById('edit-transaction-category');
+        const saveEditBtn = document.getElementById('save-edit-btn');
+        const cancelEditBtn = document.getElementById('cancel-edit-btn');
+        const confirmDeleteTransactionModal = document.getElementById('confirm-delete-transaction-modal');
+        const cancelDeleteTransactionBtn = document.getElementById('cancel-delete-transaction-btn');
+        const confirmDeleteTransactionBtn = document.getElementById('confirm-delete-transaction-btn');
+
+        const manageCategoriesBtn = document.getElementById('manage-categories-btn');
+        const manageCategoriesModal = document.getElementById('manage-categories-modal');
+        const newCategoryNameInput = document.getElementById('new-category-name');
+        const addCategoryBtn = document.getElementById('add-category-btn');
+        const categoryListEl = document.getElementById('category-list');
+        const closeCategoriesModalBtn = document.getElementById('close-categories-modal-btn');
+
+        const showReportBtn = document.getElementById('show-report-btn');
+        const reportSection = document.getElementById('report-section');
+        const backFromReportBtn = document.getElementById('back-from-report-btn');
+        const reportStartInput = document.getElementById('report-start-date');
+        const reportEndInput = document.getElementById('report-end-date');
+        const generateReportBtn = document.getElementById('generate-report-btn');
+        const allAccountsToggle = document.getElementById('all-accounts-toggle');
+        const reportIncomeEl = document.getElementById('report-income');
+        const reportExpenseEl = document.getElementById('report-expense');
+        const reportBalanceEl = document.getElementById('report-balance');
+        const reportOutputEl = document.getElementById('report-output');
+        const categoryReportTableBody = document.getElementById('category-report-table-body');
+        const noReportDataEl = document.getElementById('no-report-data');
+        const reportWeekBtn = document.getElementById('report-week-btn');
+        const reportMonthBtn = document.getElementById('report-month-btn');
+        const reportYearBtn = document.getElementById('report-year-btn');
+
+
+        let db, auth, userId, accounts = [];
+        let currentAccountId = null;
+        let transactions = [];
+        let editingTransactionId = null;
+        let deletingTransactionId = null;
+        let unsubscribeFromAccounts, unsubscribeFromTransactions;
+        let financialChartInstance = null;
+        
+        const DEFAULT_CATEGORIES = ['Lainnya', 'Gaji', 'Makanan', 'Transportasi', 'Tagihan', 'Belanja', 'Hiburan', 'Pendidikan'];
+        let userCategories = [...DEFAULT_CATEGORIES];
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        const showMessage = (text) => {
+            messageTextEl.textContent = text;
+            messageModal.classList.remove('hidden');
+        };
+
+        closeMessageModalBtn.addEventListener('click', () => {
+            messageModal.classList.add('hidden');
+        });
+
+        const app = initializeApp(firebaseConfig);
+        db = getFirestore(app);
+        auth = getAuth(app);
+        const storage = getStorage(app);
+
+        // Fungsi untuk memformat angka menjadi format mata uang Rupiah
+        const formatRupiah = (number) => {
+            return new Intl.NumberFormat('id-ID', {
+                style: 'currency',
+                currency: 'IDR',
+                minimumFractionDigits: 0
+            }).format(number);
+        };
+        
+        // Fungsi untuk memperbarui pilihan kategori di semua dropdown
+        const updateCategoryDropdowns = () => {
+            const dropdowns = [transactionCategorySelect, editTransactionCategorySelect];
+            dropdowns.forEach(dropdown => {
+                dropdown.innerHTML = '';
+                userCategories.forEach(category => {
+                    const option = document.createElement('option');
+                    option.value = category;
+                    option.textContent = category;
+                    dropdown.appendChild(option);
+                });
+            });
+        };
+
+        // Otentikasi pengguna
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                userId = user.uid;
+                userIdEl.textContent = userId;
+                console.log(`User authenticated: ${userId}`);
+                await loadUserCategories();
+                startListeningForAccounts();
+            } else {
+                try {
+                    if (initialAuthToken) {
+                        await signInWithCustomToken(auth, initialAuthToken);
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+                } catch (error) {
+                    console.error("Error signing in:", error);
+                    showMessage("Terjadi kesalahan saat otentikasi. Silakan coba lagi.");
+                }
+            }
+        });
+
+        // Memuat kategori pengguna dari Firestore
+        const loadUserCategories = async () => {
+            try {
+                const docRef = doc(db, `artifacts/${appId}/users/${userId}/settings`, 'categories');
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists() && docSnap.data().categories) {
+                    userCategories = [...DEFAULT_CATEGORIES, ...docSnap.data().categories];
+                } else {
+                    userCategories = [...DEFAULT_CATEGORIES];
+                }
+                updateCategoryDropdowns();
+            } catch (e) {
+                console.error("Error loading categories:", e);
+                userCategories = [...DEFAULT_CATEGORIES];
+                updateCategoryDropdowns();
+            }
+        };
+
+        // Menyimpan kategori pengguna ke Firestore
+        const saveUserCategories = async () => {
+            try {
+                const customCategories = userCategories.filter(cat => !DEFAULT_CATEGORIES.includes(cat));
+                const docRef = doc(db, `artifacts/${appId}/users/${userId}/settings`, 'categories');
+                await setDoc(docRef, { categories: customCategories }, { merge: true });
+                showMessage("Kategori berhasil disimpan.");
+            } catch (e) {
+                console.error("Error saving categories:", e);
+                showMessage("Gagal menyimpan kategori. Silakan coba lagi.");
+            }
+        };
+
+
+        // Mendengarkan perubahan akun secara real-time dari Firestore
+        const startListeningForAccounts = () => {
+            if (unsubscribeFromAccounts) {
+                unsubscribeFromAccounts();
+            }
+
+            const accountsColRef = collection(db, `artifacts/${appId}/users/${userId}/accounts`);
+            unsubscribeFromAccounts = onSnapshot(accountsColRef, (snapshot) => {
+                accounts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderAccounts();
+            }, (error) => {
+                console.error("Error listening to accounts:", error);
+                showMessage("Gagal memuat data akun. Silakan refresh halaman.");
+            });
+        };
+
+        // Fungsi untuk menampilkan daftar akun
+        const renderAccounts = () => {
+            accountListEl.innerHTML = '';
+            if (accounts.length === 0) {
+                accountListEl.innerHTML = `<p class="text-center text-gray-400 col-span-full">Belum ada akun. Tambahkan akun baru.</p>`;
+                return;
+            }
+            accounts.forEach(account => {
+                const totalBalance = account.transactions.reduce((sum, t) => sum + t.amount, 0);
+                const accountCard = document.createElement('div');
+                accountCard.className = 'account-card bg-slate-800 p-5 rounded-lg shadow-md hover:bg-slate-700 transition-colors duration-200 border border-slate-700';
+                accountCard.innerHTML = `
+                    <h3 class="font-semibold text-lg text-white">${account.name}</h3>
+                    <p class="text-sm text-gray-400 mt-1">Saldo</p>
+                    <p class="text-2xl font-bold ${totalBalance >= 0 ? 'text-green-400' : 'text-red-400'} mt-1">${formatRupiah(totalBalance)}</p>
+                `;
+                accountCard.addEventListener('click', () => {
+                    currentAccountId = account.id;
+                    showAccountDetails(account);
+                });
+                accountListEl.appendChild(accountCard);
+            });
+        };
+
+        // Fungsi untuk menampilkan detail akun
+        const showAccountDetails = (account) => {
+            // Unsubscribe dari listener transaksi sebelumnya jika ada
+            if (unsubscribeFromTransactions) {
+                unsubscribeFromTransactions();
+            }
+
+            mainHeader.classList.add('hidden');
+            accountManagementSection.classList.add('hidden');
+            accountDetailsSection.classList.remove('hidden');
+            
+            accountDetailsTitle.textContent = `Rincian Akun: ${account.name}`;
+            
+            // Mendengarkan perubahan transaksi secara real-time
+            const accountDocRef = doc(db, `artifacts/${appId}/users/${userId}/accounts`, account.id);
+            unsubscribeFromTransactions = onSnapshot(accountDocRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    transactions = docSnap.data().transactions || [];
+                    const totalBalance = transactions.reduce((sum, t) => sum + t.amount, 0);
+                    
+                    currentBalanceEl.textContent = formatRupiah(totalBalance);
+                    if (totalBalance < 0) {
+                        currentBalanceEl.classList.remove('text-green-400');
+                        currentBalanceEl.classList.add('text-red-400');
+                    } else {
+                        currentBalanceEl.classList.remove('text-red-400');
+                        currentBalanceEl.classList.add('text-green-400');
+                    }
+
+                    // Tampilkan riwayat transaksi jika bagian analisis tidak terlihat
+                    if (financialAnalysisSection.classList.contains('hidden') && reportSection.classList.contains('hidden')) {
+                         renderTransactions(transactions);
+                    }
+                } else {
+                    console.log("No such account document!");
+                    backToAccountsBtn.click(); // Kembali ke daftar akun jika dokumen tidak ada
+                }
+            }, (error) => {
+                console.error("Error listening to transactions:", error);
+                showMessage("Gagal memuat transaksi. Silakan coba lagi.");
+            });
+        };
+
+        // Fungsi untuk menampilkan riwayat transaksi
+        const renderTransactions = (transactions) => {
+            transactionHistoryEl.innerHTML = '';
+            if (transactions.length === 0) {
+                noTransactionsMessage.classList.remove('hidden');
+                return;
+            }
+            noTransactionsMessage.classList.add('hidden');
+
+            // Menyalin array untuk diurutkan agar tidak mengubah data asli
+            const sortedTransactions = [...transactions].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            sortedTransactions.forEach(t => {
+                const transactionEl = document.createElement('div');
+                const isIncome = t.amount >= 0;
+                transactionEl.className = `p-4 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between ${isIncome ? 'bg-green-900' : 'bg-red-900'}`;
+                
+                let photoHtml = '';
+                if (t.photoUrl) {
+                    photoHtml = `<img src="${t.photoUrl}" alt="Bukti Transaksi" class="w-12 h-12 rounded-full object-cover mr-4">`;
+                }
+
+                transactionEl.innerHTML = `
+                    <div class="flex items-center flex-1">
+                        ${photoHtml}
+                        <div>
+                            <p class="font-medium text-gray-200">${t.description}</p>
+                            <p class="text-sm text-gray-400">${new Date(t.date).toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                            <span class="text-xs font-semibold px-2 py-0.5 mt-1 rounded-full bg-slate-700 text-slate-300 inline-block">${t.category || 'Lainnya'}</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-4 mt-3 sm:mt-0">
+                        <p class="font-semibold ${isIncome ? 'text-green-400' : 'text-red-400'}">${formatRupiah(t.amount)}</p>
+                        <button class="edit-transaction-btn text-indigo-300 hover:text-indigo-100 transition-colors duration-200" data-id="${t.id}">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="delete-transaction-btn text-red-300 hover:text-red-100 transition-colors duration-200" data-id="${t.id}">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </div>
+                `;
+                transactionHistoryEl.appendChild(transactionEl);
+            });
+            
+            // Tambahkan event listener untuk tombol edit dan hapus
+            document.querySelectorAll('.edit-transaction-btn').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const transactionId = e.currentTarget.dataset.id;
+                    editingTransactionId = transactionId;
+                    const transactionToEdit = transactions.find(t => t.id === transactionId);
+                    if (transactionToEdit) {
+                        editTransactionAmountInput.value = Math.abs(transactionToEdit.amount);
+                        editTransactionDescriptionInput.value = transactionToEdit.description;
+                        editTransactionCategorySelect.value = transactionToEdit.category || 'Lainnya';
+                        editTransactionModal.classList.remove('hidden');
+                    }
+                });
+            });
+
+            document.querySelectorAll('.delete-transaction-btn').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    deletingTransactionId = e.currentTarget.dataset.id;
+                    confirmDeleteTransactionModal.classList.remove('hidden');
+                });
+            });
+        };
+
+        // Fungsi untuk mengekspor data ke file CSV
+        const exportToCsv = (account) => {
+            const transactions = account.transactions;
+            if (transactions.length === 0) {
+                showMessage('Tidak ada transaksi untuk diekspor.');
+                return;
+            }
+
+            const header = 'Tanggal,Deskripsi,Jumlah,Kategori,URL_Foto\n';
+            const rows = transactions.map(t => {
+                const date = new Date(t.date).toLocaleDateString('id-ID');
+                const description = `"${t.description.replace(/"/g, '""')}"`;
+                const amount = t.amount;
+                const category = t.category || '';
+                const photoUrl = t.photoUrl || '';
+                return `${date},${description},${amount},${category},${photoUrl}`;
+            }).join('\n');
+
+            const csvContent = header + rows;
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.setAttribute('href', url);
+            link.setAttribute('download', `${account.name}_transaksi.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        };
+        
+        // Fungsi untuk mengimpor data dari file CSV
+        const importFromCsv = (file) => {
+            if (!currentAccountId) {
+                showMessage('Silakan pilih akun terlebih dahulu untuk mengimpor data.');
+                importCsvInput.value = '';
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                const text = e.target.result;
+                const lines = text.trim().split(/\r?\n/); // Memisahkan baris dengan regex yang lebih baik
+                const newTransactions = [];
+                let importSuccess = false;
+                
+                // Menangani baris header secara opsional
+                const headers = lines[0].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(h => h.trim().replace(/"/g, ''));
+                const hasHeader = headers.some(h => ['Tanggal', 'Deskripsi', 'Jumlah', 'Kategori'].includes(h));
+                const dataLines = hasHeader ? lines.slice(1) : lines;
+
+                if (dataLines.length === 0) {
+                    showMessage("File CSV kosong atau tidak memiliki data yang valid.");
+                    importCsvInput.value = '';
+                    return;
+                }
+
+                dataLines.forEach(line => {
+                    // Memisahkan kolom dengan regex yang lebih kuat untuk menangani koma dalam kutipan
+                    const parts = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+
+                    if (parts.length >= 3) {
+                        try {
+                            const date = new Date(parts[0].trim().replace(/"/g, ''));
+                            const description = parts[1].trim().replace(/^"|"$/g, '').replace(/""/g, '"');
+                            const amount = parseFloat(parts[2].trim().replace(/"/g, '').replace(/,/g, ''));
+                            const category = parts[3] ? parts[3].trim().replace(/^"|"$/g, '').replace(/""/g, '"') : 'Lainnya';
+
+                            if (!isNaN(amount) && description && !isNaN(date)) {
+                                newTransactions.push({
+                                    id: crypto.randomUUID(),
+                                    date: date.toISOString(),
+                                    description: description,
+                                    amount: amount,
+                                    category: category
+                                });
+                                importSuccess = true;
+                            }
+                        } catch (e) {
+                            console.warn("Skipping invalid CSV line:", line, e);
+                        }
+                    }
+                });
+
+                if (importSuccess) {
+                    const accountDocRef = doc(db, `artifacts/${appId}/users/${userId}/accounts`, currentAccountId);
+                    const docSnap = await getDoc(accountDocRef);
+                    if (docSnap.exists()) {
+                        const existingTransactions = docSnap.data().transactions || [];
+                        const updatedTransactions = [...existingTransactions, ...newTransactions];
+                        try {
+                            await setDoc(accountDocRef, { transactions: updatedTransactions }, { merge: true });
+                            showMessage(`Berhasil mengimpor ${newTransactions.length} transaksi.`);
+                        } catch (e) {
+                            console.error("Error importing transactions:", e);
+                            showMessage("Gagal mengimpor data. Silakan coba lagi.");
+                        }
+                    } else {
+                        showMessage("Akun tidak ditemukan. Tidak dapat mengimpor.");
+                    }
+                } else {
+                    showMessage("Tidak ada data transaksi yang valid dalam file. Pastikan file Anda memiliki kolom 'Tanggal,Deskripsi,Jumlah,Kategori' yang diformat dengan benar.");
+                }
+
+                importCsvInput.value = ''; // Reset input file
+            };
+            reader.readAsText(file);
+        };
+        
+        importCsvInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                importFromCsv(file);
+            }
+        });
+
+
+        // Event listener untuk tombol "Tambah Akun Baru"
+        addAccountBtn.addEventListener('click', () => {
+            addAccountModal.classList.remove('hidden');
+            newAccountNameInput.focus();
+        });
+
+        // Event listener untuk tombol "Batal" di modal
+        cancelAddAccountBtn.addEventListener('click', () => {
+            addAccountModal.classList.add('hidden');
+            newAccountNameInput.value = '';
+        });
+
+        // Event listener untuk tombol "Simpan" di modal
+        saveAccountBtn.addEventListener('click', async () => {
+            const name = newAccountNameInput.value.trim();
+            if (name) {
+                const newAccount = {
+                    name: name,
+                    transactions: []
+                };
+                try {
+                    const accountsColRef = collection(db, `artifacts/${appId}/users/${userId}/accounts`);
+                    await addDoc(accountsColRef, newAccount);
+                    addAccountModal.classList.add('hidden');
+                    newAccountNameInput.value = '';
+                } catch (e) {
+                    console.error("Error adding document: ", e);
+                    showMessage("Gagal menyimpan akun. Silakan coba lagi.");
+                }
+            }
+        });
+        
+        // Event listener untuk pratinjau foto
+        transactionPhotoInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    photoPreviewEl.src = e.target.result;
+                    photoPreviewContainer.classList.remove('hidden');
+                };
+                reader.readAsDataURL(file);
+            } else {
+                photoPreviewContainer.classList.add('hidden');
+            }
+        });
+
+        // Fungsi untuk menambahkan transaksi baru ke Firestore
+        const addTransaction = async (type) => {
+            const amount = parseFloat(transactionAmountInput.value);
+            const description = transactionDescriptionInput.value.trim();
+            const category = transactionCategorySelect.value;
+            const file = transactionPhotoInput.files[0];
+            let photoUrl = '';
+
+            if (isNaN(amount) || amount === 0 || !description) {
+                showMessage('Silakan masukkan jumlah dan deskripsi yang valid.');
+                return;
+            }
+
+            const currentAccount = accounts.find(acc => acc.id === currentAccountId);
+            if (!currentAccount) return;
+            
+            // Nonaktifkan tombol selama proses unggahan
+            addIncomeBtn.disabled = true;
+            addExpenseBtn.disabled = true;
+            addIncomeBtn.textContent = 'Memuat...';
+            addExpenseBtn.textContent = 'Memuat...';
+
+            if (file) {
+                try {
+                    const filename = `transaction-photo-${crypto.randomUUID()}`;
+                    const storageRef = ref(storage, `images/${appId}/${userId}/${currentAccountId}/${filename}`);
+                    await uploadBytes(storageRef, file);
+                    photoUrl = await getDownloadURL(storageRef);
+                } catch (e) {
+                    console.error("Error uploading photo:", e);
+                    showMessage("Gagal mengunggah foto. Transaksi akan disimpan tanpa foto.");
+                }
+            }
+
+            const transactionAmount = type === 'income' ? Math.abs(amount) : -Math.abs(amount);
+            
+            const newTransaction = {
+                id: crypto.randomUUID(), // Tambahkan ID unik
+                amount: transactionAmount,
+                description: description,
+                category: category,
+                date: new Date().toISOString(),
+                photoUrl: photoUrl
+            };
+
+            const accountDocRef = doc(db, `artifacts/${appId}/users/${userId}/accounts`, currentAccountId);
+            const docSnap = await getDoc(accountDocRef);
+
+            if (docSnap.exists()) {
+                const updatedTransactions = [...(docSnap.data().transactions || []), newTransaction];
+                try {
+                    await setDoc(accountDocRef, { transactions: updatedTransactions }, { merge: true });
+                    transactionAmountInput.value = '';
+                    transactionDescriptionInput.value = '';
+                    transactionCategorySelect.value = 'Lainnya';
+                    transactionPhotoInput.value = '';
+                    photoPreviewContainer.classList.add('hidden');
+                    showMessage("Transaksi berhasil disimpan.");
+                } catch (e) {
+                    console.error("Error updating document:", e);
+                    showMessage("Gagal menyimpan transaksi. Silakan coba lagi.");
+                }
+            }
+            
+            // Aktifkan kembali tombol setelah selesai
+            addIncomeBtn.disabled = false;
+            addExpenseBtn.disabled = false;
+            addIncomeBtn.innerHTML = '<i class="fas fa-arrow-up mr-2"></i>Tambah Pemasukan';
+            addExpenseBtn.innerHTML = '<i class="fas fa-arrow-down mr-2"></i>Tambah Pengeluaran';
+        };
+
+        // Fungsi untuk menghapus akun
+        const deleteAccount = async () => {
+            if (currentAccountId) {
+                confirmDeleteModal.classList.remove('hidden');
+            }
+        };
+
+        // Event listener untuk tombol "Hapus Akun"
+        deleteAccountBtn.addEventListener('click', deleteAccount);
+
+        // Event listener untuk konfirmasi penghapusan akun
+        confirmDeleteBtn.addEventListener('click', async () => {
+            confirmDeleteModal.classList.add('hidden');
+            if (currentAccountId) {
+                try {
+                    const accountDocRef = doc(db, `artifacts/${appId}/users/${userId}/accounts`, currentAccountId);
+                    await deleteDoc(accountDocRef);
+                    showMessage('Akun berhasil dihapus.');
+                    // Kembali ke daftar akun setelah penghapusan
+                    backToAccountsBtn.click();
+                } catch (e) {
+                    console.error("Error deleting document:", e);
+                    showMessage("Gagal menghapus akun. Silakan coba lagi.");
+                }
+            }
+        });
+
+        // Event listener untuk membatalkan penghapusan akun
+        cancelDeleteBtn.addEventListener('click', () => {
+            confirmDeleteModal.classList.add('hidden');
+        });
+
+        // Event listener untuk tombol "Tambah Pemasukan"
+        addIncomeBtn.addEventListener('click', () => addTransaction('income'));
+
+        // Event listener untuk tombol "Tambah Pengeluaran"
+        addExpenseBtn.addEventListener('click', () => addTransaction('expense'));
+
+        // Event listener untuk tombol "Ekspor ke Spreadsheet"
+        exportCsvBtn.addEventListener('click', () => {
+            const currentAccount = accounts.find(acc => acc.id === currentAccountId);
+            if (currentAccount) {
+                exportToCsv(currentAccount);
+            }
+        });
+
+        // Event listener untuk tombol "Kembali ke Daftar Akun"
+        backToAccountsBtn.addEventListener('click', () => {
+            // Unsubscribe dari listener transaksi saat kembali ke daftar akun
+            if (unsubscribeFromTransactions) {
+                unsubscribeFromTransactions();
+            }
+            mainHeader.classList.remove('hidden');
+            accountDetailsSection.classList.add('hidden');
+            financialAnalysisSection.classList.add('hidden');
+            reportSection.classList.add('hidden');
+            accountManagementSection.classList.remove('hidden');
+            renderAccounts();
+        });
+
+        // --- Fitur Analisis Keuangan Baru ---
+
+        // Fungsi untuk mengolah data transaksi dan membuat grafik
+        const renderFinancialAnalysisChart = (transactions) => {
+            if (financialChartInstance) {
+                financialChartInstance.destroy();
+            }
+
+            const expenses = transactions.filter(t => t.amount < 0);
+            if (expenses.length === 0) {
+                const ctx = financialChartCanvas.getContext('2d');
+                ctx.clearRect(0, 0, financialChartCanvas.width, financialChartCanvas.height);
+                ctx.fillStyle = '#94a3b8'; // text-slate-400
+                ctx.textAlign = 'center';
+                ctx.font = '16px Inter, sans-serif';
+                ctx.fillText('Belum ada data pengeluaran untuk dianalisis.', financialChartCanvas.width / 2, financialChartCanvas.height / 2);
+                return;
+            }
+
+            const categoryData = {};
+            expenses.forEach(t => {
+                const category = t.category || 'Lainnya';
+                if (!categoryData[category]) {
+                    categoryData[category] = 0;
+                }
+                categoryData[category] += Math.abs(t.amount);
+            });
+
+            const labels = Object.keys(categoryData);
+            const data = Object.values(categoryData);
+            
+            const backgroundColors = [
+                '#a78bfa', '#34d399', '#f87171', '#fbbf24', '#60a5fa', '#f472b6', '#38bdf8', '#c084fc'
+            ];
+            
+            const chartData = {
+                labels: labels,
+                datasets: [
+                    {
+                        data: data,
+                        backgroundColor: backgroundColors.slice(0, labels.length),
+                        hoverOffset: 4
+                    }
+                ]
+            };
+
+            const chartConfig = {
+                type: 'pie',
+                data: chartData,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: { color: '#e2e8f0' }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.parsed;
+                                    return `${label}: ${formatRupiah(value)}`;
+                                }
+                            }
+                        }
+                    }
+                }
+            };
+            
+            financialChartInstance = new Chart(financialChartCanvas, chartConfig);
+        };
+
+        // Event listener untuk tombol "Lihat Analisis"
+        showAnalysisBtn.addEventListener('click', () => {
+            const currentAccount = accounts.find(acc => acc.id === currentAccountId);
+            if (!currentAccount) return;
+            
+            document.getElementById('transaction-history').classList.add('hidden');
+            document.getElementById('no-transactions-message').classList.add('hidden');
+            reportSection.classList.add('hidden');
+            financialAnalysisSection.classList.remove('hidden');
+
+            if (financialChartInstance) {
+                 financialChartInstance.destroy();
+            }
+            renderFinancialAnalysisChart(currentAccount.transactions);
+        });
+
+        // Event listener untuk tombol "Kembali ke Transaksi"
+        backFromAnalysisBtn.addEventListener('click', () => {
+            financialAnalysisSection.classList.add('hidden');
+            document.getElementById('transaction-history').classList.remove('hidden');
+            const currentAccount = accounts.find(acc => acc.id === currentAccountId);
+            if (currentAccount) {
+                 renderTransactions(currentAccount.transactions);
+            }
+        });
+
+        // --- Logika untuk Edit dan Hapus Transaksi ---
+
+        // Simpan perubahan dari modal edit
+        saveEditBtn.addEventListener('click', async () => {
+            const newAmount = parseFloat(editTransactionAmountInput.value);
+            const newDescription = editTransactionDescriptionInput.value.trim();
+            const newCategory = editTransactionCategorySelect.value;
+
+            if (isNaN(newAmount) || newAmount <= 0 || !newDescription) {
+                showMessage('Silakan masukkan jumlah, deskripsi, dan kategori yang valid.');
+                return;
+            }
+
+            const currentAccount = accounts.find(acc => acc.id === currentAccountId);
+            if (!currentAccount) return;
+
+            const transactionIndex = transactions.findIndex(t => t.id === editingTransactionId);
+            if (transactionIndex > -1) {
+                const transactionToUpdate = transactions[transactionIndex];
+                const updatedTransactions = [...transactions];
+                
+                updatedTransactions[transactionIndex] = {
+                    ...transactionToUpdate,
+                    amount: transactionToUpdate.amount > 0 ? newAmount : -newAmount,
+                    description: newDescription,
+                    category: newCategory
+                };
+
+                const accountDocRef = doc(db, `artifacts/${appId}/users/${userId}/accounts`, currentAccountId);
+                try {
+                    await setDoc(accountDocRef, { transactions: updatedTransactions }, { merge: true });
+                    editTransactionModal.classList.add('hidden');
+                    showMessage('Transaksi berhasil diperbarui.');
+                } catch (e) {
+                    console.error("Error updating transaction:", e);
+                    showMessage("Gagal memperbarui transaksi. Silakan coba lagi.");
+                }
+            } else {
+                showMessage("Transaksi tidak ditemukan.");
+            }
+        });
+
+        // Batalkan edit
+        cancelEditBtn.addEventListener('click', () => {
+            editTransactionModal.classList.add('hidden');
+        });
+
+        // Konfirmasi penghapusan transaksi
+        confirmDeleteTransactionBtn.addEventListener('click', async () => {
+            confirmDeleteTransactionModal.classList.add('hidden');
+            const currentAccount = accounts.find(acc => acc.id === currentAccountId);
+            if (!currentAccount) return;
+
+            const updatedTransactions = transactions.filter(t => t.id !== deletingTransactionId);
+            const accountDocRef = doc(db, `artifacts/${appId}/users/${userId}/accounts`, currentAccountId);
+            try {
+                await setDoc(accountDocRef, { transactions: updatedTransactions }, { merge: true });
+                showMessage('Transaksi berhasil dihapus.');
+            } catch (e) {
+                console.error("Error deleting transaction:", e);
+                showMessage("Gagal menghapus transaksi. Silakan coba lagi.");
+            }
+        });
+
+        // Batalkan hapus
+        cancelDeleteTransactionBtn.addEventListener('click', () => {
+            confirmDeleteTransactionModal.classList.add('hidden');
+        });
+        
+        // --- Logika untuk Kategori Kustom ---
+
+        // Buka modal kelola kategori
+        manageCategoriesBtn.addEventListener('click', () => {
+            renderCategoryList();
+            manageCategoriesModal.classList.remove('hidden');
+        });
+
+        // Tutup modal kelola kategori
+        closeCategoriesModalBtn.addEventListener('click', () => {
+            manageCategoriesModal.classList.add('hidden');
+        });
+
+        // Tambah kategori baru
+        addCategoryBtn.addEventListener('click', () => {
+            const newCategory = newCategoryNameInput.value.trim();
+            if (newCategory && !userCategories.includes(newCategory)) {
+                userCategories.push(newCategory);
+                newCategoryNameInput.value = '';
+                saveUserCategories();
+                updateCategoryDropdowns();
+                renderCategoryList();
+            } else if (newCategory) {
+                 showMessage('Kategori ini sudah ada.');
+            }
+        });
+
+        // Tampilkan daftar kategori di modal
+        const renderCategoryList = () => {
+            categoryListEl.innerHTML = '';
+            userCategories.forEach(category => {
+                const isDefault = DEFAULT_CATEGORIES.includes(category);
+                const categoryItem = document.createElement('div');
+                categoryItem.className = 'flex items-center justify-between p-2 rounded-md bg-slate-700';
+                categoryItem.innerHTML = `
+                    <span class="text-gray-200">${category}</span>
+                    <button class="delete-category-btn text-red-400 hover:text-red-200 transition-colors duration-200" data-category="${category}" ${isDefault ? 'disabled' : ''}>
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
+                `;
+                categoryListEl.appendChild(categoryItem);
+            });
+            
+            // Tambahkan event listener untuk tombol hapus kategori
+            document.querySelectorAll('.delete-category-btn').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const categoryToDelete = e.currentTarget.dataset.category;
+                    userCategories = userCategories.filter(cat => cat !== categoryToDelete);
+                    saveUserCategories();
+                    updateCategoryDropdowns();
+                    renderCategoryList();
+                });
+            });
+        };
+
+        // --- Fitur Laporan Baru ---
+
+        // Event listener untuk tombol "Lihat Laporan"
+        showReportBtn.addEventListener('click', () => {
+            document.getElementById('transaction-history').classList.add('hidden');
+            document.getElementById('no-transactions-message').classList.add('hidden');
+            financialAnalysisSection.classList.add('hidden');
+            reportSection.classList.remove('hidden');
+            reportOutputEl.classList.add('hidden');
+            noReportDataEl.classList.add('hidden');
+            
+            allAccountsToggle.checked = false;
+            reportWeekBtn.click();
+        });
+
+        // Event listener untuk tombol "Lihat Laporan Semua Akun" di beranda
+        showHomeReportBtn.addEventListener('click', () => {
+            mainHeader.classList.add('hidden');
+            accountManagementSection.classList.add('hidden');
+            accountDetailsSection.classList.add('hidden');
+            financialAnalysisSection.classList.add('hidden');
+            reportSection.classList.remove('hidden');
+
+            allAccountsToggle.checked = true;
+            reportWeekBtn.click();
+        });
+
+        // Event listener untuk tombol "Kembali" dari laporan
+        backFromReportBtn.addEventListener('click', () => {
+            reportSection.classList.add('hidden');
+            // Cek apakah datang dari beranda atau dari rincian akun
+            if (currentAccountId) {
+                 accountDetailsSection.classList.remove('hidden');
+                 renderTransactions(transactions);
+            } else {
+                 mainHeader.classList.remove('hidden');
+                 accountManagementSection.classList.remove('hidden');
+            }
+        });
+
+        // Fungsi untuk mendapatkan semua transaksi dari semua akun
+        const getAllTransactions = () => {
+            return accounts.flatMap(acc => acc.transactions);
+        };
+
+        // Fungsi untuk membuat laporan
+        const generateReport = () => {
+            let selectedTransactions;
+            if (allAccountsToggle.checked) {
+                selectedTransactions = getAllTransactions();
+            } else {
+                if (!currentAccountId) {
+                     showMessage("Silakan pilih akun terlebih dahulu atau gunakan fitur 'Laporan Semua Akun' dari beranda.");
+                     return;
+                }
+                selectedTransactions = transactions;
+            }
+
+            const startDate = new Date(reportStartInput.value);
+            const endDate = new Date(reportEndInput.value);
+            
+            if (isNaN(startDate) || isNaN(endDate) || startDate > endDate) {
+                showMessage("Silakan pilih rentang tanggal yang valid.");
+                return;
+            }
+            endDate.setHours(23, 59, 59, 999); // Sertakan seluruh hari
+
+            const filteredTransactions = selectedTransactions.filter(t => {
+                const transactionDate = new Date(t.date);
+                return transactionDate >= startDate && transactionDate <= endDate;
+            });
+
+            if (filteredTransactions.length === 0) {
+                reportOutputEl.classList.add('hidden');
+                noReportDataEl.classList.remove('hidden');
+                return;
+            }
+
+            let totalIncome = 0;
+            let totalExpense = 0;
+            const categoryExpenses = {};
+
+            filteredTransactions.forEach(t => {
+                if (t.amount > 0) {
+                    totalIncome += t.amount;
+                } else {
+                    totalExpense += Math.abs(t.amount);
+                    const category = t.category || 'Lainnya';
+                    if (!categoryExpenses[category]) {
+                        categoryExpenses[category] = 0;
+                    }
+                    categoryExpenses[category] += Math.abs(t.amount);
+                }
+            });
+
+            const totalBalance = totalIncome - totalExpense;
+
+            reportIncomeEl.textContent = formatRupiah(totalIncome);
+            reportExpenseEl.textContent = formatRupiah(totalExpense);
+            reportBalanceEl.textContent = formatRupiah(totalBalance);
+            if (totalBalance < 0) {
+                reportBalanceEl.classList.remove('text-white');
+                reportBalanceEl.classList.add('text-red-400');
+            } else {
+                reportBalanceEl.classList.remove('text-red-400');
+                reportBalanceEl.classList.add('text-white');
+            }
+
+            categoryReportTableBody.innerHTML = '';
+            const sortedCategories = Object.keys(categoryExpenses).sort((a, b) => categoryExpenses[b] - categoryExpenses[a]);
+            sortedCategories.forEach(cat => {
+                const row = document.createElement('tr');
+                row.className = 'border-b border-gray-700 last:border-0';
+                row.innerHTML = `
+                    <td class="py-2 text-gray-300">${cat}</td>
+                    <td class="py-2 text-right text-gray-200">${formatRupiah(categoryExpenses[cat])}</td>
+                `;
+                categoryReportTableBody.appendChild(row);
+            });
+
+            reportOutputEl.classList.remove('hidden');
+            noReportDataEl.classList.add('hidden');
+        };
+        
+        // Event listener untuk tombol buat laporan
+        generateReportBtn.addEventListener('click', generateReport);
+        
+        // Event listener untuk memilih rentang waktu
+        const setDateRange = (unit) => {
+            const now = new Date();
+            const start = new Date(now);
+            const end = new Date(now);
+            
+            if (unit === 'week') {
+                const dayOfWeek = now.getDay();
+                const diff = now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); // Senin
+                start.setDate(diff);
+                end.setDate(diff + 6);
+            } else if (unit === 'month') {
+                start.setDate(1);
+                end.setMonth(end.getMonth() + 1);
+                end.setDate(0);
+            } else if (unit === 'year') {
+                start.setMonth(0, 1);
+                end.setMonth(11, 31);
+            }
+
+            reportStartInput.value = start.toISOString().split('T')[0];
+            reportEndInput.value = end.toISOString().split('T')[0];
+        };
+
+        reportWeekBtn.addEventListener('click', () => setDateRange('week'));
+        reportMonthBtn.addEventListener('click', () => setDateRange('month'));
+        reportYearBtn.addEventListener('click', () => setDateRange('year'));
+
+    </script>
+</body>
+</html>
