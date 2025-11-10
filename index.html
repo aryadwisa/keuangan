@@ -92,10 +92,20 @@
     .modal-title{font-weight:700;color:var(--primary)}
     .modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
 
+    /* Table */
+    .table{width:100%;border-collapse:collapse}
+    .table th,.table td{border:1px solid var(--line);padding:10px;text-align:left}
+    .table th{background:#191919}
+    .td-right{text-align:right}
+    .text-green{color:var(--green);font-weight:700}
+    .text-red{color:var(--red);font-weight:700}
+    .text-blue{color:var(--primary);font-weight:700}
+
     .error{color:#FF4444;font-size:12px}
     @media (max-width:768px){
       .container{padding:12px}
       .transaction-item{flex-direction:column;align-items:flex-start}
+      .table th,.table td{font-size:12px}
     }
   </style>
 </head>
@@ -156,6 +166,7 @@
         <div class="dashboard-nav">
           <div class="nav-card" onclick="showSection('transactionFormSection')"><span class="icon">💰</span><b>Transaksi</b><div class="label">Kelola pemasukan & pengeluaran</div></div>
           <div class="nav-card" onclick="showSection('accountsSection')"><span class="icon">🏦</span><b>Akun & Kategori</b><div class="label">Atur akun dan kategori</div></div>
+          <div class="nav-card" onclick="showSection('accountTotalsSection')"><span class="icon">📈</span><b>Ringkasan Per Akun</b><div class="label">Pendapatan, pengeluaran & saldo</div></div>
           <div class="nav-card" onclick="showSection('transactionsSection')"><span class="icon">📋</span><b>Daftar Transaksi</b><div class="label">Filter & hapus</div></div>
           <div class="nav-card" onclick="showSection('settingsSection')"><span class="icon">⚙️</span><b>Export, backup & restore</b><div class="label">Pengaturan</div></div>
         </div>
@@ -181,19 +192,48 @@
       <!-- Akun & Kategori -->
       <div id="accountsSection" class="section">
         <button class="btn btn-secondary" onclick="showSection('dashboardSection')">← Kembali</button>
-        <div class="grid" style="grid-template-columns:1fr 1fr;gap:12px">
-          <div class="card">
-            <h3>🏦 Kelola Akun</h3>
-            <div class="form-group"><input id="newAccount" type="text" class="form-control" placeholder="Nama akun baru"/></div>
-            <button class="btn btn-primary btn-full" onclick="addAccount()">Tambah Akun</button>
-            <div id="accountsList" style="margin-top:10px"></div>
+        <div class="card">
+          <h3>🏦 Kelola Akun</h3>
+          <div class="form-group"><input id="newAccount" type="text" class="form-control" placeholder="Nama akun baru"/></div>
+          <button class="btn btn-primary btn-full" onclick="addAccount()">Tambah Akun</button>
+          <div id="accountsList" style="margin-top:10px"></div>
+        </div>
+        <div class="card" style="margin-top:12px">
+          <h3>📂 Kelola Kategori</h3>
+          <div class="form-group"><input id="newCategory" type="text" class="form-control" placeholder="Nama kategori baru"/></div>
+          <button class="btn btn-primary btn-full" onclick="addCategory()">Tambah Kategori</button>
+          <div id="categoriesList" style="margin-top:10px"></div>
+        </div>
+      </div>
+
+      <!-- Ringkasan per Akun -->
+      <div id="accountTotalsSection" class="section">
+        <button class="btn btn-secondary" onclick="showSection('dashboardSection')">← Kembali</button>
+        <div class="card">
+          <h3>📈 Ringkasan Keuangan per Akun</h3>
+          <p style="opacity:.8;margin-top:0">Lihat total pemasukan, pengeluaran, dan saldo untuk masing-masing akun.</p>
+          <div class="form-group">
+            <label>Urutkan</label>
+            <select id="sortAccountTotals" class="form-control" onchange="renderAccountTotals()">
+              <option value="name">Nama Akun (A→Z)</option>
+              <option value="balance_desc">Saldo Tertinggi</option>
+              <option value="income_desc">Pemasukan Terbesar</option>
+              <option value="expense_desc">Pengeluaran Terbesar</option>
+            </select>
           </div>
-          <div class="card">
-            <h3>📂 Kelola Kategori</h3>
-            <div class="form-group"><input id="newCategory" type="text" class="form-control" placeholder="Nama kategori baru"/></div>
-            <button class="btn btn-primary btn-full" onclick="addCategory()">Tambah Kategori</button>
-            <div id="categoriesList" style="margin-top:10px"></div>
-          </div>
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Akun</th>
+                <th class="td-right">Pemasukan</th>
+                <th class="td-right">Pengeluaran</th>
+                <th class="td-right">Saldo</th>
+              </tr>
+            </thead>
+            <tbody id="accountTotalsBody">
+              <tr><td colspan="4" style="opacity:.7">Memuat data...</td></tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -362,6 +402,7 @@
     async function loadUserData(){
       await Promise.all([loadAccounts(),loadCategories(),loadTransactions(),loadNotes()]);
       updateSummary();
+      renderAccountTotals();
     }
     async function loadAccounts(){
       const snap = await db.collection('users').doc(currentUser.uid).collection('akun').get();
@@ -392,7 +433,7 @@
       if(!name) return;
       await db.collection('users').doc(currentUser.uid).collection('akun').add({nama:name,tanggal_dibuat:firebase.firestore.FieldValue.serverTimestamp()});
       document.getElementById('newAccount').value='';
-      await loadAccounts();
+      await loadAccounts(); renderAccountTotals();
     }
     async function deleteAccount(id){
       if(!confirm('Menghapus akun akan menghapus semua transaksi terkait. Lanjutkan?')) return;
@@ -404,7 +445,7 @@
         await batch.commit();
       }
       await db.collection('users').doc(currentUser.uid).collection('akun').doc(id).delete();
-      await loadAccounts(); await loadTransactions(); updateSummary();
+      await loadAccounts(); await loadTransactions(); updateSummary(); renderAccountTotals();
     }
     function renderAccounts(){
       const container=document.getElementById('accountsList');
@@ -442,7 +483,7 @@
         await batch.commit();
       }
       await db.collection('users').doc(currentUser.uid).collection('kategori').doc(id).delete();
-      await loadCategories(); await loadTransactions(); updateSummary();
+      await loadCategories(); await loadTransactions(); updateSummary(); renderAccountTotals();
     }
     function renderCategories(){
       const container=document.getElementById('categoriesList');
@@ -470,7 +511,7 @@
       const jumlah = parseFloat(document.getElementById('transactionAmount').value);
       if(!tanggal||!akun||!kategori||!tipe||!jumlah||jumlah<=0){alert('Lengkapi data transaksi');return;}
       await db.collection('users').doc(currentUser.uid).collection('transaksi').add({tanggal,akun,kategori,deskripsi,tipe,jumlah});
-      await loadTransactions(); updateSummary();
+      await loadTransactions(); updateSummary(); renderAccountTotals();
       document.getElementById('transactionDesc').value=''; document.getElementById('transactionAmount').value='';
     }
     function renderTransactions(list=transactions){
@@ -492,7 +533,7 @@
     async function deleteTransaction(id){
       if(!confirm('Yakin ingin menghapus transaksi ini?')) return;
       await db.collection('users').doc(currentUser.uid).collection('transaksi').doc(id).delete();
-      await loadTransactions(); updateSummary();
+      await loadTransactions(); updateSummary(); renderAccountTotals();
     }
     function filterTransactions(){
       const fa = document.getElementById('filterAccount').value;
@@ -526,6 +567,42 @@
       document.getElementById('totalIncome').textContent = formatCurrency(income);
       document.getElementById('totalExpense').textContent = formatCurrency(expense);
       document.getElementById('totalBalance').textContent = formatCurrency(income-expense);
+    }
+
+    // === Account Totals (Income, Expense, Balance) ===
+    function computeAccountTotals(){
+      const map = {};
+      accounts.forEach(a=>{ map[a.nama] = { income:0, expense:0, balance:0 }; });
+      transactions.forEach(t=>{
+        if(!map[t.akun]) map[t.akun] = { income:0, expense:0, balance:0 };
+        if(t.tipe==='income'){ map[t.akun].income += Number(t.jumlah||0); }
+        else if(t.tipe==='expense'){ map[t.akun].expense += Number(t.jumlah||0); }
+      });
+      Object.keys(map).forEach(k=>{ map[k].balance = map[k].income - map[k].expense; });
+      return map;
+    }
+    function renderAccountTotals(){
+      const tbody = document.getElementById('accountTotalsBody');
+      if(!tbody) return;
+      const totals = computeAccountTotals();
+      let rows = Object.entries(totals).map(([name, v])=>({ name, ...v }));
+      const sortBy = (document.getElementById('sortAccountTotals')||{}).value || 'name';
+      if(sortBy==='balance_desc'){ rows.sort((a,b)=>b.balance-a.balance); }
+      else if(sortBy==='income_desc'){ rows.sort((a,b)=>b.income-a.income); }
+      else if(sortBy==='expense_desc'){ rows.sort((a,b)=>b.expense-a.expense); }
+      else { rows.sort((a,b)=>a.name.localeCompare(b.name)); }
+      if(rows.length===0){
+        tbody.innerHTML = '<tr><td colspan="4" style="opacity:.7">Belum ada akun</td></tr>';
+        return;
+      }
+      tbody.innerHTML = rows.map(r=>`
+        <tr>
+          <td>${r.name}</td>
+          <td class="td-right text-green">${formatCurrency(r.income)}</td>
+          <td class="td-right text-red">${formatCurrency(r.expense)}</td>
+          <td class="td-right text-blue">${formatCurrency(r.balance)}</td>
+        </tr>
+      `).join('');
     }
 
     // === Export & Backup ===
@@ -587,12 +664,12 @@
       const userRef=db.collection('users').doc(currentUser.uid).collection('transaksi');
       await userRef.add({tanggal,akun:from,kategori:"Transfer Keluar",deskripsi:`Transfer ke ${to}`,tipe:"expense",jumlah:amount});
       await userRef.add({tanggal,akun:to,kategori:"Transfer Masuk",deskripsi:`Transfer dari ${from}`,tipe:"income",jumlah:amount});
-      await loadTransactions(); updateSummary();
+      await loadTransactions(); updateSummary(); renderAccountTotals();
       closeTransferModal();
       alert('Transfer berhasil');
     }
 
-    // Init motivation if not logged in yet (for first paint)
+    // Init motivation on first paint
     displayDailyMotivation();
   </script>
 </body>
