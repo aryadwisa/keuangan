@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>💰 SIAP MENJADI KAYA</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+  <!-- Firebase compat -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+  <!-- jsPDF (export PDF) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    :root{
+      --bg:#121212;--panel:#1E1E1E;--muted:#2A2A2A;--line:#333;--line2:#444;--text:#E0E0E0;--primary:#00BFFF;
+      --green:#4CAF50;--red:#FF4444;
+    }
+    *{box-sizing:border-box;font-family:'Poppins',sans-serif}
+    body{margin:0;background:var(--bg);color:var(--text)}
+    .container{max-width:1200px;margin:0 auto;padding:16px}
+    .header{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:24px;margin-bottom:24px;text-align:center}
+    h1{margin:0 0 8px 0;color:var(--primary);font-size:28px}
+
+    /* Motivation */
+    .motivation-quote {
+      background: linear-gradient(135deg, #2A2A2A, #1A1A1A);
+      border-radius: 12px;
+      padding: 20px;
+      margin-top: 16px;
+      border: 1px solid #444;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .motivation-quote::before {
+      content: '';
+      position: absolute;
+      top: 0; left: -100%;
+      width: 100%; height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(0,191,255,0.1), transparent);
+      animation: shimmer 3s infinite;
+    }
+    @keyframes shimmer { 0%{left:-100%;}100%{left:100%;}}
+    .quote-icon { font-size:24px; margin-bottom:8px; animation:pulse 2s infinite;}
+    @keyframes pulse {0%,100%{transform:scale(1);}50%{transform:scale(1.1);}}
+    .quote-text {color:#00BFFF;font-weight:600;font-style:italic;}
+    .quote-author {font-size:12px;opacity:0.7;color:#E0E0E0;}
+
+    .auth-container,.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px}
+    .auth-container{max-width:420px;margin:0 auto}
+    .btn{padding:10px 16px;border:none;border-radius:8px;font-weight:600;cursor:pointer}
+    .btn-primary{background:var(--primary);color:#fff}
+    .btn-secondary{background:#444;color:#fff}
+    .btn-danger{background:var(--red);color:#fff}
+    .btn-success{background:var(--green);color:#fff}
+    .btn-small{padding:6px 10px;font-size:12px}
+    .btn-full{width:100%}
+
+    .user-info{display:flex;justify-content:space-between;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:16px}
+
+    .summary-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:16px}
+    .summary-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;text-align:center}
+    .amount.income{color:var(--green)} .amount.expense{color:var(--red)} .amount.balance{color:var(--primary)}
+
+    .quick-actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+    .quick-action{background:var(--muted);border:1px solid var(--line2);border-radius:10px;padding:14px;text-align:center;cursor:pointer}
+    .quick-action:hover{background:#303030}
+    .icon{font-size:28px;display:block;margin-bottom:6px}
+    .label{font-size:12px;opacity:.85}
+
+    .dashboard-nav{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+    .nav-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;cursor:pointer;text-align:center}
+    .nav-card:hover{background:#262626}
+
+    .section{display:none}
+    .section.active{display:block}
+
+    .form-group{margin-bottom:12px}
+    .form-group label{display:block;margin-bottom:6px;font-weight:600}
+    .form-control{width:100%;padding:10px;border:1px solid var(--line2);border-radius:8px;background:var(--muted);color:var(--text)}
+
+    .transaction-list{max-height:420px;overflow:auto}
+    .transaction-item{display:flex;gap:12px;justify-content:space-between;align-items:center;background:var(--muted);border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:8px}
+
+    .hidden{display:none}
+
+    /* Modal */
+    .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;padding:16px;z-index:50}
+    .modal{width:100%;max-width:420px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}
+    .modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+    .modal-title{font-weight:700;color:var(--primary)}
+    .modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
+
+    /* Table */
+    .table{width:100%;border-collapse:collapse}
+    .table th,.table td{border:1px solid var(--line);padding:10px;text-align:left}
+    .table th{background:#191919}
+    .td-right{text-align:right}
+    .text-green{color:var(--green);font-weight:700}
+    .text-red{color:var(--red);font-weight:700}
+    .text-blue{color:var(--primary);font-weight:700}
+
+    .error{color:#FF4444;font-size:12px}
+    @media (max-width:768px){
+      .container{padding:12px}
+      .transaction-item{flex-direction:column;align-items:flex-start}
+      .table th,.table td{font-size:12px}
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>💰 SIAP MENJADI KAYA</h1>
+      <div class="motivation-quote">
+        <div class="quote-icon">💡</div>
+        <div class="quote-text" id="dailyMotivation">Loading motivasi hari ini...</div>
+        <div class="quote-author">- Motivasi Harian</div>
+      </div>
+    </div>
+
+    <!-- Auth -->
+    <div id="authContainer" class="auth-container">
+      <div id="loginForm">
+        <h3 style="text-align:center;color:var(--primary);margin:0 0 16px">Masuk ke Akun</h3>
+        <div class="form-group"><label>Email</label><input id="loginEmail" type="email" class="form-control" placeholder="email"/></div>
+        <div class="form-group"><label>Password</label><input id="loginPassword" type="password" class="form-control" placeholder="password"/></div>
+        <button class="btn btn-primary btn-full" onclick="login()">Masuk</button>
+        <button class="btn btn-secondary btn-full" onclick="showRegister()">Daftar Akun Baru</button>
+        <div id="loginError" class="error"></div>
+      </div>
+      <div id="registerForm" class="hidden">
+        <h3 style="text-align:center;color:var(--primary);margin:0 0 16px">Daftar Akun Baru</h3>
+        <div class="form-group"><label>Email</label><input id="registerEmail" type="email" class="form-control" placeholder="email"/></div>
+        <div class="form-group"><label>Password</label><input id="registerPassword" type="password" class="form-control" placeholder="min 6 karakter"/></div>
+        <div class="form-group"><label>Konfirmasi Password</label><input id="confirmPassword" type="password" class="form-control" placeholder="ulangi password"/></div>
+        <button class="btn btn-primary btn-full" onclick="register()">Daftar</button>
+        <button class="btn btn-secondary btn-full" onclick="showLogin()">Kembali ke Login</button>
+        <div id="registerError" class="error"></div>
+      </div>
+    </div>
+
+    <!-- App -->
+    <div id="mainApp" class="hidden">
+      <div id="dashboardSection" class="section active">
+        <div class="user-info"><span>Selamat datang, <b id="userEmail"></b></span><button class="btn btn-secondary" onclick="logout()">Keluar</button></div>
+
+        <div class="summary-cards">
+  <!-- SALDO (utama) -->
+  <div class="summary-card">
+    <h4>Saldo</h4>
+    <p id="totalBalance" class="amount balance">Rp 0</p>
+  </div>
+
+  <!-- PENGELUARAN -->
+  <div class="summary-card">
+    <h4>Total Pengeluaran</h4>
+    <p id="totalExpense" class="amount expense">Rp 0</p>
+  </div>
+
+  <!-- PEMASUKAN -->
+  <div class="summary-card">
+    <h4>Total Pemasukan</h4>
+    <p id="totalIncome" class="amount income">Rp 0</p>
+  </div>
+</div>
+
+
+        <div class="card">
+          <h3>⚡ Aksi Cepat</h3>
+          <div class="quick-actions">
+            <div class="quick-action" onclick="showSection('transactionFormSection')"><span class="icon">💸</span><div class="label">Tambah Transaksi</div></div>
+            <div class="quick-action" onclick="showSection('transactionsSection')"><span class="icon">📋</span><div class="label">Lihat Transaksi</div></div>
+            <div class="quick-action" onclick="showSection('notesSection')"><span class="icon">📝</span><div class="label">Catatan Harian</div></div>
+            <div class="quick-action" onclick="showSection('settingsSection')"><span class="icon">⚙️</span><div class="label">Pengaturan</div></div>
+            <div class="quick-action" onclick="openTransferModal()"><span class="icon">💱</span><div class="label">Transfer Antar Akun</div></div>
+          </div>
+        </div>
+
+        <div class="dashboard-nav">
+          <div class="nav-card" onclick="showSection('transactionFormSection')"><span class="icon">💰</span><b>Transaksi</b><div class="label">Kelola pemasukan & pengeluaran</div></div>
+          <div class="nav-card" onclick="showSection('accountsSection')"><span class="icon">🏦</span><b>Akun & Kategori</b><div class="label">Atur akun dan kategori</div></div>
+          <div class="nav-card" onclick="showSection('accountTotalsSection')"><span class="icon">📈</span><b>Ringkasan Per Akun</b><div class="label">Pendapatan, pengeluaran & saldo</div></div>
+          <div class="nav-card" onclick="showSection('transactionsSection')"><span class="icon">📋</span><b>Daftar Transaksi</b><div class="label">Filter & hapus</div></div>
+          <div class="nav-card" onclick="showSection('settingsSection')"><span class="icon">⚙️</span><b>Export, backup & restore</b><div class="label">Pengaturan</div></div>
+        </div>
+      </div>
+
+      <!-- Form Transaksi -->
+      <div id="transactionFormSection" class="section">
+        <button class="btn btn-secondary" onclick="showSection('dashboardSection')">← Kembali</button>
+        <div class="card">
+          <h3>💸 Tambah / Edit Transaksi</h3>
+          <div class="form-group"><label>Tanggal</label><input id="transactionDate" type="date" class="form-control"></div>
+          <div class="form-group"><label>Akun</label><select id="transactionAccount" class="form-control"><option value="">Pilih akun</option></select></div>
+          <div class="form-group"><label>Kategori</label><select id="transactionCategory" class="form-control"><option value="">Pilih kategori</option></select></div>
+          <div class="form-group"><label>Deskripsi</label><input id="transactionDesc" type="text" class="form-control" placeholder="Deskripsi"/></div>
+          <div class="form-group"><label>Tipe</label><select id="transactionType" class="form-control"><option value="income">Pemasukan</option><option value="expense">Pengeluaran</option></select></div>
+          <div class="form-group"><label>Jumlah</label><input id="transactionAmount" type="number" class="form-control" placeholder="0"/></div>
+          <button id="addTransactionBtn" class="btn btn-primary btn-full" onclick="addTransaction()">Tambah Transaksi</button>
+          <button id="updateTransactionBtn" class="btn btn-success btn-full hidden" onclick="updateTransaction()">Update Transaksi</button>
+          <button id="cancelEditBtn" class="btn btn-secondary btn-full hidden" onclick="cancelEdit()">Batal Edit</button>
+        </div>
+      </div>
+
+      <!-- Akun & Kategori -->
+      <div id="accountsSection" class="section">
+        <button class="btn btn-secondary" onclick="showSection('dashboardSection')">← Kembali</button>
+        <div class="card">
+          <h3>🏦 Kelola Akun</h3>
+          <div class="form-group"><input id="newAccount" type="text" class="form-control" placeholder="Nama akun baru"/></div>
+          <button class="btn btn-primary btn-full" onclick="addAccount()">Tambah Akun</button>
+          <div id="accountsList" style="margin-top:10px"></div>
+        </div>
+        <div class="card" style="margin-top:12px">
+          <h3>📂 Kelola Kategori</h3>
+          <div class="form-group"><input id="newCategory" type="text" class="form-control" placeholder="Nama kategori baru"/></div>
+          <button class="btn btn-primary btn-full" onclick="addCategory()">Tambah Kategori</button>
+          <div id="categoriesList" style="margin-top:10px"></div>
+        </div>
+      </div>
+
+      <!-- Ringkasan per Akun -->
+      <div id="accountTotalsSection" class="section">
+        <button class="btn btn-secondary" onclick="showSection('dashboardSection')">← Kembali</button>
+        <div class="card">
+          <h3>📈 Ringkasan Keuangan per Akun</h3>
+          <p style="opacity:.8;margin-top:0">Lihat total pemasukan, pengeluaran, dan saldo untuk masing-masing akun.</p>
+          <div class="form-group">
+            <label>Urutkan</label>
+            <select id="sortAccountTotals" class="form-control" onchange="renderAccountTotals()">
+              <option value="name">Nama Akun (A→Z)</option>
+              <option value="balance_desc">Saldo Tertinggi</option>
+              <option value="income_desc">Pemasukan Terbesar</option>
+              <option value="expense_desc">Pengeluaran Terbesar</option>
+            </select>
+          </div>
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Akun</th>
+                <th class="td-right">Pemasukan</th>
+                <th class="td-right">Pengeluaran</th>
+                <th class="td-right">Saldo</th>
+              </tr>
+            </thead>
+            <tbody id="accountTotalsBody">
+              <tr><td colspan="4" style="opacity:.7">Memuat data...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Daftar Transaksi -->
+      <div id="transactionsSection" class="section">
+        <button class="btn btn-secondary" onclick="showSection('dashboardSection')">← Kembali</button>
+        <div class="card">
+          <h3>🔍 Filter Transaksi</h3>
+          <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px">
+            <div class="form-group"><label>Akun</label><select id="filterAccount" class="form-control" onchange="filterTransactions()"><option value="">Semua akun</option></select></div>
+            <div class="form-group"><label>Kategori</label><select id="filterCategory" class="form-control" onchange="filterTransactions()"><option value="">Semua kategori</option></select></div>
+            <div class="form-group"><label>Dari Tanggal</label><input id="filterDateFrom" type="date" class="form-control" onchange="filterTransactions()"/></div>
+            <div class="form-group"><label>Sampai Tanggal</label><input id="filterDateTo" type="date" class="form-control" onchange="filterTransactions()"/></div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>📋 Daftar Transaksi</h3>
+          <div id="transactionsList" class="transaction-list"></div>
+        </div>
+      </div>
+
+      <!-- Catatan -->
+      <div id="notesSection" class="section">
+        <button class="btn btn-secondary" onclick="showSection('dashboardSection')">← Kembali</button>
+        <div class="card">
+          <h3>📝 Catatan Harian</h3>
+          <div class="form-group"><textarea id="newNote" rows="3" class="form-control" placeholder="Tulis catatan hari ini..."></textarea></div>
+          <button class="btn btn-primary btn-full" onclick="addNote()">Simpan Catatan</button>
+          <div id="notesList" class="transaction-list" style="margin-top:10px"></div>
+        </div>
+      </div>
+
+      <!-- Pengaturan -->
+      <div id="settingsSection" class="section">
+        <button class="btn btn-secondary" onclick="showSection('dashboardSection')">← Kembali</button>
+        <div class="card">
+          <h3>💾 Export & Backup</h3>
+          <button class="btn btn-success btn-full" onclick="exportPDF()">📄 Export Laporan PDF</button>
+          <button class="btn btn-success btn-full" onclick="exportCSV()">📊 Export CSV</button>
+          <button class="btn btn-primary btn-full" onclick="backupData()">💾 Backup (JSON)</button>
+          <div class="form-group"><label>Restore (JSON)</label><input id="restoreFile" type="file" class="form-control" accept=".json"/></div>
+          <button class="btn btn-secondary btn-full" onclick="restoreData()">🔄 Restore Data</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Transfer -->
+  <div id="transferModal" class="modal-backdrop">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title">💱 Transfer Antar Akun</div>
+        <button class="btn btn-secondary btn-small" onclick="closeTransferModal()">✕</button>
+      </div>
+      <div class="form-group"><label>Dari Akun</label><select id="transferFrom" class="form-control"></select></div>
+      <div class="form-group"><label>Ke Akun</label><select id="transferTo" class="form-control"></select></div>
+      <div class="form-group"><label>Jumlah</label><input id="transferAmount" type="number" class="form-control" placeholder="0"/></div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="closeTransferModal()">Batal</button>
+        <button class="btn btn-primary" onclick="submitTransfer()">Transfer</button>
+      </div>
+      <div id="transferError" class="error"></div>
+    </div>
+  </div>
+
+  <script>
+    // === Motivasi Harian ===
+    const motivationalQuotes = [
+      "Kekayaan bukan tentang berapa banyak yang Anda hasilkan, tetapi berapa banyak yang Anda simpan dan investasikan.",
+      "Setiap rupiah yang Anda hemat hari ini adalah investasi untuk masa depan yang lebih cerah.",
+      "Jangan menunggu untuk mulai menabung. Mulailah dengan jumlah kecil, konsistensi adalah kunci utama.",
+      "Orang kaya membangun aset, orang miskin hanya memiliki pengeluaran.",
+      "Investasi terbaik adalah investasi pada diri sendiri dan pengetahuan keuangan.",
+      "Anggaran bukan pembatas, tetapi peta jalan menuju kebebasan keuangan.",
+      "Hutang adalah musuh terbesar kekayaan. Lunasi hutang, bangun masa depan.",
+      "Pendapatan pasif adalah kunci untuk tidak bekerja selamanya demi uang.",
+      "Mulai investasi sedini mungkin, biarkan bunga berbunga bekerja untuk Anda.",
+      "Kekayaan dibangun satu rupiah pada satu waktu, bukan dalam semalam.",
+      "Hidup sederhana hari ini untuk hidup mewah di masa depan.",
+      "Dana darurat adalah jaring pengaman keuangan yang wajib dimiliki setiap orang.",
+      "Jangan biarkan gaya hidup naik lebih cepat dari pendapatan Anda.",
+      "Pendidikan keuangan adalah investasi yang tidak akan pernah rugi.",
+      "Konsistensi dalam menabung lebih penting daripada jumlah yang besar."
+    ];
+    function displayDailyMotivation(){
+      const today = new Date();
+      const index = today.getDate() % motivationalQuotes.length;
+      const el = document.getElementById('dailyMotivation');
+      if (el) el.textContent = motivationalQuotes[index];
+    }
+
+    // === Firebase Config ===
+    const firebaseConfig = {
+      apiKey: "AIzaSyCmPVI8q25PlkCkeltDiwNOz_u48qfo2jM",
+      authDomain: "catatan-keuangan-9c516.firebaseapp.com",
+      projectId: "catatan-keuangan-9c516",
+      storageBucket: "catatan-keuangan-9c516.firebasestorage.app",
+      messagingSenderId: "422420181379",
+      appId: "1:422420181379:web:55ed8129fff48e3a4bc6b6",
+      measurementId: "G-8GSCN4LEYR"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    // === State ===
+    let currentUser = null;
+    let accounts = [];
+    let categories = [];
+    let transactions = [];
+    let notes = [];
+    let editingTransactionId = null;
+
+    // === Utilities ===
+    function formatCurrency(n){ n = Number(n || 0); return "Rp " + n.toLocaleString("id-ID"); }
+    function showSection(id){
+      document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+      if(id==='transactionFormSection'){
+        document.getElementById('transactionDate').value = new Date().toISOString().split('T')[0];
+      }
+    }
+
+    // === Auth ===
+    function showRegister(){document.getElementById('loginForm').classList.add('hidden');document.getElementById('registerForm').classList.remove('hidden');}
+    function showLogin(){document.getElementById('registerForm').classList.add('hidden');document.getElementById('loginForm').classList.remove('hidden');}
+    async function login(){
+      const email = document.getElementById('loginEmail').value;
+      const password = document.getElementById('loginPassword').value;
+      const errorDiv = document.getElementById('loginError');
+      if(!email || !password){errorDiv.textContent='Email dan password harus diisi';return;}
+      try{await auth.signInWithEmailAndPassword(email,password);errorDiv.textContent='';}
+      catch(e){errorDiv.textContent=e.message;}
+    }
+    async function register(){
+      const email = document.getElementById('registerEmail').value;
+      const password = document.getElementById('registerPassword').value;
+      const confirm = document.getElementById('confirmPassword').value;
+      const errorDiv = document.getElementById('registerError');
+      if(!email||!password||!confirm){errorDiv.textContent='Semua field harus diisi';return;}
+      if(password!==confirm){errorDiv.textContent='Password tidak cocok';return;}
+      if(password.length<6){errorDiv.textContent='Password minimal 6 karakter';return;}
+      try{await auth.createUserWithEmailAndPassword(email,password);errorDiv.textContent='';}
+      catch(e){errorDiv.textContent=e.message;}
+    }
+    function logout(){auth.signOut();}
+
+    auth.onAuthStateChanged(async (user)=>{
+      if(user){
+        currentUser=user;
+        document.getElementById('authContainer').classList.add('hidden');
+        document.getElementById('mainApp').classList.remove('hidden');
+        document.getElementById('userEmail').textContent=user.email;
+        document.getElementById('transactionDate').value=new Date().toISOString().split('T')[0];
+        displayDailyMotivation();
+        await loadUserData();
+      }else{
+        currentUser=null;
+        document.getElementById('authContainer').classList.remove('hidden');
+        document.getElementById('mainApp').classList.add('hidden');
+        displayDailyMotivation();
+      }
+    });
+
+    // === Loaders ===
+    async function loadUserData(){
+      await Promise.all([loadAccounts(),loadCategories(),loadTransactions(),loadNotes()]);
+      updateSummary();
+      renderAccountTotals();
+    }
+    async function loadAccounts(){
+      const snap = await db.collection('users').doc(currentUser.uid).collection('akun').get();
+      accounts = snap.docs.map(d=>({id:d.id,...d.data()}));
+      renderAccounts();
+      updateAccountSelects();
+    }
+    async function loadCategories(){
+      const snap = await db.collection('users').doc(currentUser.uid).collection('kategori').get();
+      categories = snap.docs.map(d=>({id:d.id,...d.data()}));
+      renderCategories();
+      updateCategorySelects();
+    }
+    async function loadTransactions(){
+      const snap = await db.collection('users').doc(currentUser.uid).collection('transaksi').orderBy('tanggal','desc').get();
+      transactions = snap.docs.map(d=>({id:d.id,...d.data()}));
+      renderTransactions();
+    }
+    async function loadNotes(){
+      const snap = await db.collection('users').doc(currentUser.uid).collection('catatan_harian').orderBy('tanggal','desc').get();
+      notes = snap.docs.map(d=>({id:d.id,...d.data()}));
+      renderNotes();
+    }
+
+    // === Accounts ===
+    async function addAccount(){
+      const name = document.getElementById('newAccount').value.trim();
+      if(!name) return;
+      await db.collection('users').doc(currentUser.uid).collection('akun').add({nama:name,tanggal_dibuat:firebase.firestore.FieldValue.serverTimestamp()});
+      document.getElementById('newAccount').value='';
+      await loadAccounts(); renderAccountTotals();
+    }
+    async function deleteAccount(id){
+      if(!confirm('Menghapus akun akan menghapus semua transaksi terkait. Lanjutkan?')) return;
+      const acc = accounts.find(a=>a.id===id);
+      if(acc){
+        const q = await db.collection('users').doc(currentUser.uid).collection('transaksi').where('akun','==',acc.nama).get();
+        const batch = db.batch();
+        q.forEach(doc=>batch.delete(doc.ref));
+        await batch.commit();
+      }
+      await db.collection('users').doc(currentUser.uid).collection('akun').doc(id).delete();
+      await loadAccounts(); await loadTransactions(); updateSummary(); renderAccountTotals();
+    }
+    function renderAccounts(){
+      const container=document.getElementById('accountsList');
+      container.innerHTML = accounts.map(a=>`
+        <div class="transaction-item">
+          <span>${a.nama}</span>
+          <div>
+            <button class="btn btn-danger btn-small" onclick="deleteAccount('${a.id}')">Hapus</button>
+          </div>
+        </div>`).join('');
+    }
+    function updateAccountSelects(){
+      const accOptions = accounts.map(a=>`<option value="${a.nama}">${a.nama}</option>`).join('');
+      const txAcc = document.getElementById('transactionAccount'); if(txAcc){ txAcc.innerHTML='<option value="">Pilih akun</option>'+accOptions; }
+      const fAcc = document.getElementById('filterAccount'); if(fAcc){ fAcc.innerHTML='<option value="">Semua akun</option>'+accOptions; }
+      const tFrom = document.getElementById('transferFrom'); if(tFrom){ tFrom.innerHTML=accOptions; }
+      const tTo = document.getElementById('transferTo'); if(tTo){ tTo.innerHTML=accOptions; }
+    }
+
+    // === Categories ===
+    async function addCategory(){
+      const name = document.getElementById('newCategory').value.trim();
+      if(!name) return;
+      await db.collection('users').doc(currentUser.uid).collection('kategori').add({nama:name,tanggal_dibuat:firebase.firestore.FieldValue.serverTimestamp()});
+      document.getElementById('newCategory').value='';
+      await loadCategories();
+    }
+    async function deleteCategory(id){
+      if(!confirm('Menghapus kategori akan menghapus semua transaksi terkait. Lanjutkan?')) return;
+      const cat = categories.find(c=>c.id===id);
+      if(cat){
+        const q = await db.collection('users').doc(currentUser.uid).collection('transaksi').where('kategori','==',cat.nama).get();
+        const batch = db.batch();
+        q.forEach(doc=>batch.delete(doc.ref));
+        await batch.commit();
+      }
+      await db.collection('users').doc(currentUser.uid).collection('kategori').doc(id).delete();
+      await loadCategories(); await loadTransactions(); updateSummary(); renderAccountTotals();
+    }
+    function renderCategories(){
+      const container=document.getElementById('categoriesList');
+      container.innerHTML = categories.map(c=>`
+        <div class="transaction-item">
+          <span>${c.nama}</span>
+          <div>
+            <button class="btn btn-danger btn-small" onclick="deleteCategory('${c.id}')">Hapus</button>
+          </div>
+        </div>`).join('');
+    }
+    function updateCategorySelects(){
+      const opts = categories.map(c=>`<option value="${c.nama}">${c.nama}</option>`).join('');
+      const txCat=document.getElementById('transactionCategory'); if(txCat){ txCat.innerHTML='<option value="">Pilih kategori</option>'+opts; }
+      const fCat=document.getElementById('filterCategory'); if(fCat){ fCat.innerHTML='<option value="">Semua kategori</option>'+opts; }
+    }
+
+    // === Transactions ===
+    async function addTransaction(){
+      const tanggal = document.getElementById('transactionDate').value;
+      const akun = document.getElementById('transactionAccount').value;
+      const kategori = document.getElementById('transactionCategory').value;
+      const deskripsi = document.getElementById('transactionDesc').value.trim();
+      const tipe = document.getElementById('transactionType').value;
+      const jumlah = parseFloat(document.getElementById('transactionAmount').value);
+      if(!tanggal||!akun||!kategori||!tipe||!jumlah||jumlah<=0){alert('Lengkapi data transaksi');return;}
+      await db.collection('users').doc(currentUser.uid).collection('transaksi').add({tanggal,akun,kategori,deskripsi,tipe,jumlah});
+      await loadTransactions(); updateSummary(); renderAccountTotals();
+      document.getElementById('transactionDesc').value=''; document.getElementById('transactionAmount').value='';
+    }
+    function renderTransactions(list=transactions){
+      const container=document.getElementById('transactionsList');
+      if(list.length===0){container.innerHTML='<div class="error" style="opacity:.7">Belum ada transaksi</div>';return;}
+      container.innerHTML = list.map(t=>`
+        <div class="transaction-item">
+          <div style="flex:1">
+            <div style="font-size:12px;opacity:.7">${t.tanggal}</div>
+            <div style="font-weight:600">${t.deskripsi||'-'}</div>
+            <div style="font-size:12px;opacity:.8">${t.akun} • ${t.kategori} • ${t.tipe==='income'?'Pemasukan':'Pengeluaran'}</div>
+          </div>
+          <div style="font-weight:700;${t.tipe==='income'?'color:var(--green)':'color:var(--red)'}">${formatCurrency(t.jumlah)}</div>
+          <div>
+            <button class="btn btn-danger btn-small" onclick="deleteTransaction('${t.id}')">Hapus</button>
+          </div>
+        </div>`).join('');
+    }
+    async function deleteTransaction(id){
+      if(!confirm('Yakin ingin menghapus transaksi ini?')) return;
+      await db.collection('users').doc(currentUser.uid).collection('transaksi').doc(id).delete();
+      await loadTransactions(); updateSummary(); renderAccountTotals();
+    }
+    function filterTransactions(){
+      const fa = document.getElementById('filterAccount').value;
+      const fc = document.getElementById('filterCategory').value;
+      const fd = document.getElementById('filterDateFrom').value;
+      const td = document.getElementById('filterDateTo').value;
+      const filtered = transactions.filter(t=>(!fa||t.akun===fa)&&(!fc||t.kategori===fc)&&(!fd||t.tanggal>=fd)&&(!td||t.tanggal<=td));
+      renderTransactions(filtered);
+    }
+
+    // === Notes ===
+    async function addNote(){
+      const content = document.getElementById('newNote').value.trim();
+      if(!content) return;
+      const tanggal = new Date().toISOString().split('T')[0];
+      await db.collection('users').doc(currentUser.uid).collection('catatan_harian').add({tanggal,content});
+      document.getElementById('newNote').value='';
+      await loadNotes();
+    }
+    function renderNotes(){
+      const container=document.getElementById('notesList');
+      if(notes.length===0){container.innerHTML='<div class="error" style="opacity:.7">Belum ada catatan</div>';return;}
+      container.innerHTML = notes.map(n=>`
+        <div class="transaction-item"><div><div style="font-size:12px;opacity:.7">${n.tanggal}</div><div>${n.content}</div></div></div>`).join('');
+    }
+
+    // === Summary ===
+    function updateSummary(){
+      const income = transactions.filter(t=>t.tipe==='income').reduce((s,t)=>s+t.jumlah,0);
+      const expense = transactions.filter(t=>t.tipe==='expense').reduce((s,t)=>s+t.jumlah,0);
+      document.getElementById('totalIncome').textContent = formatCurrency(income);
+      document.getElementById('totalExpense').textContent = formatCurrency(expense);
+      document.getElementById('totalBalance').textContent = formatCurrency(income-expense);
+    }
+
+    // === Account Totals (Income, Expense, Balance) ===
+    function computeAccountTotals(){
+      const map = {};
+      accounts.forEach(a=>{ map[a.nama] = { income:0, expense:0, balance:0 }; });
+      transactions.forEach(t=>{
+        if(!map[t.akun]) map[t.akun] = { income:0, expense:0, balance:0 };
+        if(t.tipe==='income'){ map[t.akun].income += Number(t.jumlah||0); }
+        else if(t.tipe==='expense'){ map[t.akun].expense += Number(t.jumlah||0); }
+      });
+      Object.keys(map).forEach(k=>{ map[k].balance = map[k].income - map[k].expense; });
+      return map;
+    }
+    function renderAccountTotals(){
+      const tbody = document.getElementById('accountTotalsBody');
+      if(!tbody) return;
+      const totals = computeAccountTotals();
+      let rows = Object.entries(totals).map(([name, v])=>({ name, ...v }));
+      const sortBy = (document.getElementById('sortAccountTotals')||{}).value || 'name';
+      if(sortBy==='balance_desc'){ rows.sort((a,b)=>b.balance-a.balance); }
+      else if(sortBy==='income_desc'){ rows.sort((a,b)=>b.income-a.income); }
+      else if(sortBy==='expense_desc'){ rows.sort((a,b)=>b.expense-a.expense); }
+      else { rows.sort((a,b)=>a.name.localeCompare(b.name)); }
+      if(rows.length===0){
+        tbody.innerHTML = '<tr><td colspan="4" style="opacity:.7">Belum ada akun</td></tr>';
+        return;
+      }
+      tbody.innerHTML = rows.map(r=>`
+        <tr>
+          <td>${r.name}</td>
+          <td class="td-right text-green">${formatCurrency(r.income)}</td>
+          <td class="td-right text-red">${formatCurrency(r.expense)}</td>
+          <td class="td-right text-blue">${formatCurrency(r.balance)}</td>
+        </tr>
+      `).join('');
+    }
+
+    // === Export & Backup ===
+    function exportPDF(){
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      doc.text("Laporan Keuangan", 10, 10);
+      let y=20;
+      transactions.forEach(t=>{
+        const line = `${t.tanggal} | ${t.akun} | ${t.kategori} | ${t.deskripsi||'-'} | ${t.tipe} | ${t.jumlah}`;
+        doc.text(line, 10, y);
+        y+=8; if(y>280){doc.addPage(); y=20;}
+      });
+      doc.save("laporan-keuangan.pdf");
+    }
+    function exportCSV(){
+      let csv="Tanggal,Akun,Kategori,Deskripsi,Tipe,Jumlah\n";
+      transactions.forEach(t=>{csv += `${t.tanggal},${t.akun},${t.kategori},${(t.deskripsi||'').replace(/,/g,';')},${t.tipe},${t.jumlah}\n`;});
+      const blob=new Blob([csv],{type:"text/csv"});
+      const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download="laporan-keuangan.csv";a.click();
+    }
+    async function backupData(){
+      const all={accounts,categories,transactions,notes};
+      const blob=new Blob([JSON.stringify(all,null,2)],{type:"application/json"});
+      const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download="backup-keuangan.json";a.click();
+    }
+    async function restoreData(){
+      const file=document.getElementById('restoreFile').files[0];
+      if(!file){alert('Pilih file backup JSON terlebih dahulu');return;}
+      let data; try{data=JSON.parse(await file.text());}catch(e){alert('File tidak valid');return;}
+      const userRef=db.collection('users').doc(currentUser.uid);
+      const batch=db.batch();
+      (data.accounts||[]).forEach(a=>batch.set(userRef.collection('akun').doc(),a));
+      (data.categories||[]).forEach(c=>batch.set(userRef.collection('kategori').doc(),c));
+      (data.transactions||[]).forEach(t=>batch.set(userRef.collection('transaksi').doc(),t));
+      (data.notes||[]).forEach(n=>batch.set(userRef.collection('catatan_harian').doc(),n));
+      await batch.commit();
+      await loadUserData();
+      alert('Restore selesai');
+    }
+
+    // === Transfer Modal ===
+    function openTransferModal(){
+      document.getElementById('transferError').textContent='';
+      updateAccountSelects();
+      document.getElementById('transferAmount').value='';
+      document.getElementById('transferModal').style.display='flex';
+    }
+    function closeTransferModal(){document.getElementById('transferModal').style.display='none';}
+    async function submitTransfer(){
+      const from=document.getElementById('transferFrom').value;
+      const to=document.getElementById('transferTo').value;
+      const amount=parseFloat(document.getElementById('transferAmount').value);
+      const err=document.getElementById('transferError');
+      if(!from||!to){err.textContent='Pilih akun sumber & tujuan';return;}
+      if(from===to){err.textContent='Akun sumber dan tujuan tidak boleh sama';return;}
+      if(!amount||amount<=0){err.textContent='Jumlah tidak valid';return;}
+      const tanggal=new Date().toISOString().split('T')[0];
+      const userRef=db.collection('users').doc(currentUser.uid).collection('transaksi');
+      await userRef.add({tanggal,akun:from,kategori:"Transfer Keluar",deskripsi:`Transfer ke ${to}`,tipe:"expense",jumlah:amount});
+      await userRef.add({tanggal,akun:to,kategori:"Transfer Masuk",deskripsi:`Transfer dari ${from}`,tipe:"income",jumlah:amount});
+      await loadTransactions(); updateSummary(); renderAccountTotals();
+      closeTransferModal();
+      alert('Transfer berhasil');
+    }
+
+    // Init motivation on first paint
+    displayDailyMotivation();
+  </script>
+</body>
+</html>
